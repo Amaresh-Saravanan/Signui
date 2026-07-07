@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, Volume2, VolumeX } from 'lucide-react';
+import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Toggle } from '../components/Toggle';
@@ -8,6 +9,12 @@ import { Input } from '../components/Input';
 import { cn } from '../utils/cn';
 import { SUPPORTED_SIGN_LANGUAGES } from '../constants/languages';
 import { useAppData } from '../context/AppDataContext';
+import { loadModel, isModelAvailable, classify } from '../utils/inference';
+
+const COMMIT_CONFIDENCE = 0.8;
+const COMMIT_WINDOW = 10;
+const COMMIT_MIN_HITS = 8;
+const SUPPRESS_MS = 1500;
 
 type Mode = 'sign-to-text' | 'text-to-sign';
 
@@ -34,12 +41,26 @@ export function Workspace() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(false);
   const [live, setLive] = useState(true);
+  const [speakerOn, setSpeakerOn] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>(() => makeSessionStart(state.user.primaryLanguage));
   const [inputText, setInputText] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState('');
   const [reportSent, setReportSent] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [modelReady, setModelReady] = useState(false);
+  const [liveConfidence, setLiveConfidence] = useState<number | null>(null); // rounded %, not 0-1
+  const lastConfPctRef = useRef<number | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const recentLabelsRef = useRef<string[]>([]);
+  const suppressRef = useRef<{ label: string; until: number } | null>(null);
+  const speakerOnRef = useRef(speakerOn);
+  const activeLanguageRef = useRef(activeLanguage);
+  const liveRef = useRef(live);
 
   useEffect(() => {
     setActiveLanguage(state.user.primaryLanguage);
@@ -50,6 +71,129 @@ export function Workspace() {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [transcript]);
+
+  useEffect(() => { speakerOnRef.current = speakerOn; }, [speakerOn]);
+  useEffect(() => { activeLanguageRef.current = activeLanguage; }, [activeLanguage]);
+  useEffect(() => { liveRef.current = live; }, [live]);
+
+  // Load the (ASL-only) classifier model once; UI shows "model unavailable" if this fails.
+  useEffect(() => {
+    loadModel().then(setModelReady);
+  }, []);
+
+  const commitDetection = useCallback((label: string, confidence: number) => {
+    const conf = Math.round(confidence * 100);
+    setTranscript(prev => [
+      ...prev,
+      { id: Date.now(), time: now(), text: label, conf, direction: 'outbound' },
+    ]);
+    addHistoryEntry({
+      text: label,
+      type: 'sign-to-text',
+      conf,
+      languageCode: activeLanguageRef.current,
+    });
+    if (speakerOnRef.current) {
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(label));
+    }
+  }, [addHistoryEntry]);
+
+  // Debounce/commit: a detection only lands in the transcript once it's confident AND stable
+  // across recent frames, then the same label is suppressed briefly to avoid re-committing it.
+  const handleDetection = useCallback((result: { label: string; confidence: number } | null) => {
+    if (!result) {
+      setLiveConfidence(null);
+      return;
+    }
+    setLiveConfidence(result.confidence);
+
+    const recent = recentLabelsRef.current;
+    recent.push(result.label);
+    if (recent.length > COMMIT_WINDOW) recent.shift();
+
+    const nowMs = Date.now();
+    const suppressed = suppressRef.current;
+    if (suppressed && suppressed.label === result.label && nowMs < suppressed.until) return;
+
+    const hits = recent.filter((l) => l === result.label).length;
+    if (result.confidence >= COMMIT_CONFIDENCE && hits >= COMMIT_MIN_HITS) {
+      commitDetection(result.label, result.confidence);
+      suppressRef.current = { label: result.label, until: nowMs + SUPPRESS_MS };
+      recentLabelsRef.current = [];
+    }
+  }, [commitDetection]);
+
+  // Kept in a ref so the landmarker effect below doesn't have to depend on it (its identity
+  // changes every commit, since it closes over addHistoryEntry from context) and tear the
+  // HandLandmarker down/rebuild it after every committed sign.
+  const handleDetectionRef = useRef(handleDetection);
+  useEffect(() => { handleDetectionRef.current = handleDetection; }, [handleDetection]);
+
+  // Camera: start/stop the actual media stream when the toggle flips.
+  useEffect(() => {
+    if (!cameraOn || mode !== 'sign-to-text') return;
+    let cancelled = false;
+    let stream: MediaStream | null = null;
+    const videoEl = videoRef.current;
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((s) => {
+        if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
+        stream = s;
+        setCameraError(null);
+        if (videoEl) videoEl.srcObject = s;
+      })
+      .catch((err) => {
+        setCameraError(err.name === 'NotAllowedError' ? 'Camera permission denied.' : 'Could not access camera.');
+      });
+
+    return () => {
+      cancelled = true;
+      stream?.getTracks().forEach((t) => t.stop());
+      if (videoEl) videoEl.srcObject = null;
+    };
+  }, [cameraOn, mode]);
+
+  // Landmarks + classification: run a HandLandmarker over the live video while the camera is on.
+  useEffect(() => {
+    if (!cameraOn || mode !== 'sign-to-text') return;
+    let cancelled = false;
+
+    FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
+    ).then((vision) =>
+      HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+        },
+        numHands: 1,
+        runningMode: 'VIDEO',
+      })
+    ).then((landmarker) => {
+      if (cancelled) { landmarker.close(); return; }
+      handLandmarkerRef.current = landmarker;
+
+      const loop = () => {
+        const video = videoRef.current;
+        if (video && video.readyState >= 2 && liveRef.current && isModelAvailable()) {
+          const result = landmarker.detectForVideo(video, performance.now());
+          const hand = result.landmarks[0];
+          handleDetectionRef.current(hand ? classify(hand) : null);
+        }
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    }).catch((err) => {
+      console.error('inference: failed to init HandLandmarker', err);
+    });
+
+    return () => {
+      cancelled = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      handLandmarkerRef.current?.close();
+      handLandmarkerRef.current = null;
+    };
+  }, [cameraOn, mode]);
 
   const sendText = () => {
     if (!inputText.trim()) return;
@@ -127,20 +271,39 @@ export function Workspace() {
             {mode === 'sign-to-text' ? (
               cameraOn ? (
                 <>
-                  {/* Empty space placeholder for backend stream hookup */}
-                  <div className="absolute inset-0 w-full h-full" id="video-stream-container" />
+                  <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover" />
+
+                  {cameraError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-20 p-6 text-center">
+                      <p className="text-sm text-error font-medium">{cameraError}</p>
+                    </div>
+                  )}
 
                   {/* Live ember indicator */}
-                  {live && (
+                  {live && !cameraError && (
                     <div className="absolute top-3 left-3 flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur z-10">
                       <span className="w-2 h-2 rounded-full bg-ember ember-pulse" />
                       <span className="text-[11px] font-mono-sb text-white/80">Live</span>
                     </div>
                   )}
                   {/* Confidence badge */}
-                  <div className="absolute top-3 right-3 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur z-10">
-                    <span className="text-[11px] font-mono-sb text-success">99.1% conf.</span>
-                  </div>
+                  {!cameraError && (
+                    <div className="absolute top-3 right-3 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur z-10">
+                      <span className="text-[11px] font-mono-sb text-success">
+                        {liveConfidence !== null ? `${Math.round(liveConfidence * 100)}% conf.` : '— conf.'}
+                      </span>
+                    </div>
+                  )}
+                  {!modelReady && !cameraError && (
+                    <div className="absolute bottom-3 left-3 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur z-10">
+                      <span className="text-[11px] font-mono-sb text-error">Model unavailable</span>
+                    </div>
+                  )}
+                  {activeLanguage !== 'ASL' && !cameraError && (
+                    <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-md bg-black/60 backdrop-blur z-10">
+                      <span className="text-[11px] font-mono-sb text-white/70">ASL model only (demo)</span>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
@@ -179,6 +342,13 @@ export function Workspace() {
             >
               <RotateCcw size={17} />
             </Button>
+            <div className="w-px h-6 bg-border mx-1" />
+            <Toggle
+              checked={speakerOn}
+              onChange={setSpeakerOn}
+              label="Speak"
+            />
+            {speakerOn ? <Volume2 size={17} className="text-primary" /> : <VolumeX size={17} />}
           </div>
         </div>
 
