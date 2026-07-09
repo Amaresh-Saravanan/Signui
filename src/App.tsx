@@ -4,6 +4,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AppDataProvider } from './context/AppDataContext';
 import { AccessibilityEffects } from './context/AccessibilityEffects';
 import { MainLayout } from './layouts/MainLayout';
+import { RequireAuth } from './components/RequireAuth';
+import { ConsentBanner } from './components/ConsentBanner';
 
 // Route-level code splitting: each page loads on demand so the entry chunk
 // stays small and heavy dependencies (MediaPipe via Workspace, framer-motion
@@ -40,28 +42,35 @@ function App() {
         <BrowserRouter>
           <Suspense fallback={<PageFallback />}>
             <Routes>
-              {/* Public / Full screen routes without standard sidebar */}
+              {/* Full screen routes without standard sidebar */}
               <Route element={<MainLayout hideSidebar />}>
+                {/* Public */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/onboarding" element={<Onboarding />} />
-                <Route path="/permissions" element={<Permissions />} />
-                <Route path="/preferences" element={<Preferences />} />
+                {/* Authenticated, mid-onboarding (no onboarding-complete guard) */}
+                <Route element={<RequireAuth requireOnboarded={false} />}>
+                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/permissions" element={<Permissions />} />
+                  <Route path="/preferences" element={<Preferences />} />
+                </Route>
               </Route>
 
-              {/* App routes with sidebar */}
-              <Route element={<MainLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/workspace" element={<Workspace />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/phrasebook" element={<Phrasebook />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/contact" element={<Contact />} />
+              {/* Protected app routes with sidebar */}
+              <Route element={<RequireAuth />}>
+                <Route element={<MainLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/workspace" element={<Workspace />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/phrasebook" element={<Phrasebook />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/contact" element={<Contact />} />
+                </Route>
               </Route>
             </Routes>
+            <ConsentBanner />
           </Suspense>
         </BrowserRouter>
         </AccessibilityEffects>

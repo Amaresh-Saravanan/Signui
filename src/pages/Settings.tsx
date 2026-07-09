@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Bell, Globe, Shield, Trash2, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Globe, Shield, Trash2, AlertTriangle, Download } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
@@ -9,7 +10,8 @@ import { useAppData } from '../context/AppDataContext';
 import { cn } from '../utils/cn';
 
 export function Settings() {
-  const { state, updateUserProfile, updatePreferences, setPrimaryLanguage } = useAppData();
+  const navigate = useNavigate();
+  const { state, updateUserProfile, updatePreferences, setPrimaryLanguage, exportData, signOut } = useAppData();
   const [firstName, setFirstName] = useState(state.user.firstName);
   const [lastName, setLastName] = useState(state.user.lastName);
   const [email, setEmail] = useState(state.user.email);
@@ -27,6 +29,27 @@ export function Settings() {
     updatePreferences({ notifications, localOnly, reduceMotion, highContrast });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleExport = () => {
+    // SEC-3: download all locally-held data as JSON.
+    const blob = new Blob([exportData()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `signbridge-data-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteAccount = () => {
+    // SEC-3: irreversible local wipe. Confirm, clear everything, return home.
+    const ok = window.confirm(
+      'This permanently deletes your profile, history, saved phrases, and preferences from this browser. This cannot be undone. Continue?',
+    );
+    if (!ok) return;
+    signOut();
+    navigate('/');
   };
 
   return (
@@ -146,8 +169,17 @@ export function Settings() {
         </p>
         <div className="flex flex-wrap gap-3">
           <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExport}
+            className="gap-2 h-9 text-xs font-bold rounded-xl transition-all duration-200"
+          >
+            <Download size={14} /> Export My Data
+          </Button>
+          <Button
             variant="destructive"
             size="sm"
+            onClick={handleDeleteAccount}
             className="gap-2 h-9 text-xs font-bold rounded-xl border border-red-500/20 bg-red-500/[0.08] hover:bg-red-500/20 text-red-500 transition-all duration-200 shadow-sm"
           >
             <Trash2 size={14} /> Delete Account & Clear Cache

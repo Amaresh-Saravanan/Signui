@@ -37,11 +37,20 @@ interface AppDataState {
   history: HistoryEntry[];
   phrasebook: Record<string, string[]>;
   reportsCount: number;
+  /** Client-side session. Null = signed out. Replace with a real token/session
+   *  when a backend lands (see docs/REQUIREMENTS.md BE-1); this is the seam. */
+  session: { email: string } | null;
+  onboardingComplete: boolean;
+  consentAcknowledged: boolean;
 }
 
 interface AppDataContextValue {
   state: AppDataState;
-  setAuthUser: (fullName: string, email: string) => void;
+  isAuthenticated: boolean;
+  signIn: (fullName: string, email: string) => void;
+  completeOnboarding: () => void;
+  acknowledgeConsent: () => void;
+  exportData: () => string;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updatePreferences: (updates: Partial<AppPreferences>) => void;
   setPrimaryLanguage: (language: SignLanguageCode) => void;
@@ -93,6 +102,9 @@ const DEFAULT_STATE: AppDataState = {
     Saved: [],
   },
   reportsCount: 0,
+  session: null,
+  onboardingComplete: false,
+  consentAcknowledged: false,
 };
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -110,6 +122,9 @@ function safeLoadState(): AppDataState {
       history: Array.isArray(parsed.history) ? parsed.history : [],
       phrasebook: { ...DEFAULT_STATE.phrasebook, ...(parsed.phrasebook ?? {}) },
       reportsCount: typeof parsed.reportsCount === 'number' ? parsed.reportsCount : 0,
+      session: parsed.session ?? null,
+      onboardingComplete: parsed.onboardingComplete === true,
+      consentAcknowledged: parsed.consentAcknowledged === true,
     };
   } catch {
     return DEFAULT_STATE;
@@ -163,7 +178,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const setAuthUser = (fullName: string, email: string) => {
+  const signIn = (fullName: string, email: string) => {
+    // Backend seam (BE-1): a real implementation would exchange credentials for
+    // a session token here. For now we establish a local session only.
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
     const firstName = parts[0] ?? 'New';
     const lastName = parts.slice(1).join(' ') || 'User';
@@ -175,7 +192,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         lastName,
         email,
       },
+      session: { email },
     });
+  };
+
+  const completeOnboarding = () => {
+    commit({ ...state, onboardingComplete: true });
+  };
+
+  const acknowledgeConsent = () => {
+    commit({ ...state, consentAcknowledged: true });
+  };
+
+  const exportData = () => {
+    // SEC-3: user can export all locally-held data.
+    return JSON.stringify(state, null, 2);
   };
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
@@ -387,7 +418,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const value: AppDataContextValue = {
     state,
-    setAuthUser,
+    isAuthenticated: state.session !== null,
+    signIn,
+    completeOnboarding,
+    acknowledgeConsent,
+    exportData,
     updateUserProfile,
     updatePreferences,
     setPrimaryLanguage,

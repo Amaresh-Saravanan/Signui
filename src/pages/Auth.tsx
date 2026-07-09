@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, ArrowLeft, KeyRound, LogIn, UserPlus, CheckCircle2 } from 'lucide-react';
 import { Input } from '../components/Input';
@@ -13,7 +13,8 @@ export function Auth() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
-  const { setAuthUser } = useAppData();
+  const [searchParams] = useSearchParams();
+  const { signIn, state } = useAppData();
 
   // Muted Atmosphere Particle Engine
   useEffect(() => {
@@ -98,9 +99,17 @@ export function Auth() {
       ? emailPrefix.replace(/\b\w/g, (letter) => letter.toUpperCase())
       : 'New User';
 
-    setAuthUser(mode === 'signup' && nameInput ? nameInput : fallbackName, email);
+    signIn(mode === 'signup' && nameInput ? nameInput : fallbackName, email);
     setError('');
-    navigate('/onboarding');
+
+    // New users go through onboarding; returning (onboarded) users go to their
+    // intended destination (?redirect=) or the dashboard.
+    if (!state.onboardingComplete) {
+      navigate('/onboarding');
+    } else {
+      const redirect = searchParams.get('redirect');
+      navigate(redirect && redirect.startsWith('/') ? redirect : '/dashboard');
+    }
   };
 
   return (

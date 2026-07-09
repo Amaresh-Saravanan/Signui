@@ -11,12 +11,13 @@ const ROLES = [
 ] as const;
 
 export function Preferences() {
-  const { state, updateUserProfile } = useAppData();
+  const { state, updateUserProfile, completeOnboarding } = useAppData();
   const [role, setRole] = useState(state.user.role);
   const navigate = useNavigate();
 
   const handleComplete = () => {
     updateUserProfile({ role: role as 'deaf' | 'hearing' | 'interpreter' });
+    completeOnboarding();
     navigate('/dashboard');
   };
 
