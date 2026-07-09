@@ -68,6 +68,31 @@
     --color-error: #F87171;
   }
 
+  /* ─── HIGH CONTRAST (UX-2) — maximizes text/border contrast ─── */
+  /* Defined after light/dark so it wins regardless of active theme. */
+  .high-contrast {
+    --color-background: #000000;
+    --color-surface: #000000;
+    --color-surface-alt: #0A0A0A;
+    --color-surface-hover: #1A1A1A;
+    --color-primary: #00E5FF;
+    --color-primary-hover: #33EEFF;
+    --color-primary-soft: rgba(0, 229, 255, 0.2);
+    --color-ember: #FFB000;
+    --color-text-primary: #FFFFFF;
+    --color-text-secondary: #E0E0E0;
+    --color-border: #FFFFFF;
+    --color-success: #00FF66;
+    --color-error: #FF5555;
+  }
+  .high-contrast * {
+    border-color: currentColor;
+  }
+  .high-contrast :focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+
   * {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
@@ -316,4 +341,28 @@
     backdrop-filter: blur(12px) saturate(180%);
     background: rgba(255, 255, 255, 0.75);
   }
+}
+
+/* ─── REDUCE MOTION (UX-6) ─── */
+/* Honors the OS setting and the in-app "Reduce Dynamic Motion" preference     */
+/* (which adds .reduce-motion to <html>). Framer Motion is handled separately  */
+/* via MotionConfig in AccessibilityEffects, since it animates through JS.      */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

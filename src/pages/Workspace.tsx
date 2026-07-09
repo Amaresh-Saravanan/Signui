@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert } from 'lucide-react';
+import { Mic, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, Info } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
 import { cn } from '../utils/cn';
-import { SUPPORTED_SIGN_LANGUAGES } from '../constants/languages';
+import { SUPPORTED_SIGN_LANGUAGES, isLanguageAvailable, DEFAULT_AVAILABLE_LANGUAGE } from '../constants/languages';
 import { useAppData } from '../context/AppDataContext';
 import { useSignDetector, type SignPrediction } from '../hooks/useSignDetector';
 import type { Landmark } from '../lib/aslClassifier';
@@ -45,10 +45,13 @@ function makeSessionStart(): TranscriptEntry[] {
 export function Workspace() {
   const { state, addHistoryEntry, incrementReports } = useAppData();
   const [mode, setMode] = useState<Mode>('sign-to-text');
-  const [activeLanguage, setActiveLanguage] = useState<'ISL' | 'ASL' | 'BSL'>(state.user.primaryLanguage);
+  // ML-5: never start on a language that has no shipped model.
+  const [activeLanguage, setActiveLanguage] = useState<'ISL' | 'ASL' | 'BSL'>(
+    isLanguageAvailable(state.user.primaryLanguage) ? state.user.primaryLanguage : DEFAULT_AVAILABLE_LANGUAGE,
+  );
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
-  const [micOn, setMicOn] = useState(false);
   const [live, setLive] = useState(true);
   // FIX: Called cleanly without passing an unused param
   const [transcript, setTranscript] = useState<TranscriptEntry[]>(() => makeSessionStart());
@@ -59,6 +62,7 @@ export function Workspace() {
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
 
   // ── Live sign-detection wiring ──────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -200,7 +204,9 @@ export function Workspace() {
   });
 
   useEffect(() => {
-    setActiveLanguage(state.user.primaryLanguage);
+    setActiveLanguage(
+      isLanguageAvailable(state.user.primaryLanguage) ? state.user.primaryLanguage : DEFAULT_AVAILABLE_LANGUAGE,
+    );
   }, [state.user.primaryLanguage]);
 
   useEffect(() => {
@@ -209,18 +215,25 @@ export function Workspace() {
     }
   }, [transcript]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown / info popover when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setLangDropdownOpen(false);
+      }
+      if (infoRef.current && !infoRef.current.contains(target)) {
+        setInfoOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Manual transcript override for sign-to-text. Text-to-sign is not yet
+  // implemented (FR-6), so this is a no-op in that mode.
   const sendText = () => {
+    if (mode !== 'sign-to-text') return;
     if (!inputText.trim()) return;
     const clean = inputText.trim();
 
@@ -230,18 +243,11 @@ export function Workspace() {
     ]);
     addHistoryEntry({
       text: clean,
-      type: mode,
-      conf: mode === 'sign-to-text' ? 98 : undefined,
+      type: 'sign-to-text',
       languageCode: activeLanguage,
     });
 
     setInputText('');
-    setTimeout(() => {
-      setTranscript(prev => [
-        ...prev,
-        { id: Date.now() + 1, time: now(), text: 'Text-to-sign tracking output queued…', direction: 'meta' },
-      ]);
-    }, 600);
   };
 
   const sendReport = () => {
@@ -295,6 +301,7 @@ export function Workspace() {
             >
               <MessageSquare size={13} />
               <span>Text → Sign</span>
+              <span className="text-[8px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-ember/15 text-ember font-bold">Soon</span>
             </button>
           </div>
 
@@ -322,22 +329,28 @@ export function Workspace() {
                   <div className="p-1.5 flex flex-col gap-0.5">
                     {SUPPORTED_SIGN_LANGUAGES.map((language) => {
                       const isSelected = language.code === activeLanguage;
+                      const disabled = !language.available;
                       return (
                         <button
                           key={language.code}
+                          disabled={disabled}
                           onClick={() => {
+                            if (disabled) return;
                             setActiveLanguage(language.code as 'ISL' | 'ASL' | 'BSL');
                             setLangDropdownOpen(false);
                           }}
                           className={cn(
                             "flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors text-left",
-                            isSelected
-                              ? "bg-primary/10 text-primary font-bold"
-                              : "text-text-secondary hover:bg-surface-alt hover:text-text-primary"
+                            disabled
+                              ? "text-text-secondary/50 cursor-not-allowed"
+                              : isSelected
+                                ? "bg-primary/10 text-primary font-bold"
+                                : "text-text-secondary hover:bg-surface-alt hover:text-text-primary"
                           )}
                         >
                           <span>{language.label}</span>
-                          {isSelected && <Check size={14} className="text-primary" />}
+                          {isSelected && !disabled && <Check size={14} className="text-primary" />}
+                          {disabled && <span className="text-[9px] font-mono uppercase tracking-wide text-ember">Soon</span>}
                         </button>
                       );
                     })}
@@ -348,14 +361,56 @@ export function Workspace() {
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setReportOpen(true)}
-          className="gap-2 text-xs text-text-secondary border-border/80 bg-surface-alt hover:bg-surface hover:text-text-primary rounded-full transition-all"
-        >
-          <AlertTriangle size={13} /> Report error
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* DOC-2: user-facing model-limitation disclosure */}
+          <div className="relative" ref={infoRef}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setInfoOpen((v) => !v)}
+              aria-label="Detection accuracy information"
+              aria-expanded={infoOpen}
+              className="gap-2 text-xs text-text-secondary border-border/80 bg-surface-alt hover:bg-surface hover:text-text-primary rounded-full transition-all"
+            >
+              <Info size={13} /> Accuracy
+            </Button>
+            <AnimatePresence>
+              {infoOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-72 rounded-2xl border border-border bg-surface shadow-xl z-30 p-4 text-left"
+                >
+                  <h3 className="text-xs font-bold text-text-primary mb-2">About detection accuracy</h3>
+                  <p className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                    Fingerspelling runs entirely on your device. It works best for clearly distinct hand shapes.
+                  </p>
+                  <ul className="text-[11px] text-text-secondary leading-relaxed space-y-1.5">
+                    <li className="flex gap-2">
+                      <ShieldAlert size={12} className="text-ember shrink-0 mt-0.5" />
+                      <span>Lower accuracy on similar closed-fist letters: <span className="font-mono font-bold text-text-primary">E, S, T, M, N</span>. These are flagged as “Uncertain” live.</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-ember font-bold shrink-0">✕</span>
+                      <span><span className="font-mono font-bold text-text-primary">J</span> and <span className="font-mono font-bold text-text-primary">Z</span> are motion letters and are not yet supported.</span>
+                    </li>
+                  </ul>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setReportOpen(true)}
+            className="gap-2 text-xs text-text-secondary border-border/80 bg-surface-alt hover:bg-surface hover:text-text-primary rounded-full transition-all"
+          >
+            <AlertTriangle size={13} /> Report error
+          </Button>
+        </div>
       </div>
 
       {/* ── MAIN WORKSPACE CONTAINER ───────────────────── */}
@@ -453,8 +508,10 @@ export function Workspace() {
 
           {/* Clean Floating Media Toolbar */}
           <div className="flex items-center justify-center gap-3 p-2 bg-surface border border-border/60 backdrop-blur-md rounded-full max-w-sm mx-auto w-full shadow-lg">
-            <Button variant="icon" size="sm" className={cn("w-10 h-10 rounded-full transition-all", micOn ? "bg-primary/10 text-primary border border-primary/20" : "text-text-secondary hover:text-text-primary")} onClick={() => setMicOn(v => !v)} aria-label={micOn ? 'Mute' : 'Unmute'}>
-              {micOn ? <Mic size={16} /> : <MicOff size={16} />}
+            {/* FR-5: speech input is not implemented — shown disabled, not faked */}
+            <Button variant="icon" size="sm" disabled className="w-10 h-10 rounded-full text-text-secondary/40 cursor-not-allowed relative group" aria-label="Microphone — coming soon" title="Speech input coming soon">
+              <Mic size={16} />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ember/70" />
             </Button>
             <Button variant="icon" size="sm" className={cn("w-10 h-10 rounded-full transition-all", cameraOn ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "text-text-secondary hover:text-text-primary")} onClick={() => setCameraOn(v => !v)} aria-label={cameraOn ? 'Disable camera' : 'Enable camera'}>
               {cameraOn ? <Camera size={16} /> : <CameraOff size={16} />}
@@ -539,18 +596,19 @@ export function Workspace() {
           {/* Lower Input Action Box */}
           <div className="p-4 border-t border-border/40 flex gap-2 shrink-0 bg-surface-alt/50">
             <Input
-              value={inputText}
+              value={mode === 'sign-to-text' ? inputText : ''}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendText()}
-              placeholder={mode === 'sign-to-text' ? 'Enter transcription text overrides…' : 'Type tracking communication phrases…'}
-              className="flex-1 h-10 text-xs bg-surface border-border focus:border-border/80 rounded-xl text-text-primary placeholder-text-secondary"
+              disabled={mode !== 'sign-to-text'}
+              placeholder={mode === 'sign-to-text' ? 'Enter transcription text overrides…' : 'Text → Sign is coming soon'}
+              className="flex-1 h-10 text-xs bg-surface border-border focus:border-border/80 rounded-xl text-text-primary placeholder-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Workspace custom overrides text channel input"
             />
             <Button
               size="sm"
               onClick={sendText}
-              disabled={!inputText.trim()}
-              aria-label="Send frame packet payload"
+              disabled={mode !== 'sign-to-text' || !inputText.trim()}
+              aria-label="Add manual transcript entry"
               className="px-4 h-10 rounded-xl bg-primary hover:bg-primary/90 disabled:bg-border/40 text-white font-bold flex items-center justify-center transition-all"
             >
               <Send size={14} />

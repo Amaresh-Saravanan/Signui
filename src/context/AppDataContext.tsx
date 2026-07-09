@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { isLanguageAvailable } from '../constants/languages';
 
 export type SignLanguageCode = 'ISL' | 'ASL' | 'BSL';
 export type TranslationMode = 'sign-to-text' | 'text-to-sign';
@@ -45,6 +46,7 @@ interface AppDataContextValue {
   updatePreferences: (updates: Partial<AppPreferences>) => void;
   setPrimaryLanguage: (language: SignLanguageCode) => void;
   addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => void;
+  signOut: () => void;
   toggleSaved: (id: number) => void;
   removeHistoryEntry: (id: number) => void;
   clearHistory: () => void;
@@ -234,6 +236,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addHistoryEntry = (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => {
+    // ML-5: never record a translation under a language that has no shipped
+    // model, so history/analytics can't accrue fake ISL/BSL data.
+    if (!isLanguageAvailable(entry.languageCode)) return;
+
     const newEntry: HistoryEntry = {
       ...entry,
       id: Date.now() + Math.floor(Math.random() * 1000),
@@ -245,6 +251,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ...state,
       history: [newEntry, ...state.history],
     });
+  };
+
+  const signOut = () => {
+    // FR-10: fully clear the session — reset in-memory state and wipe the
+    // persisted blob so a signed-out user is not still "logged in" on return.
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore storage errors (private mode, quota)
+    }
+    setState(DEFAULT_STATE);
   };
 
   const toggleSaved = (id: number) => {
@@ -375,6 +392,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     updatePreferences,
     setPrimaryLanguage,
     addHistoryEntry,
+    signOut,
     toggleSaved,
     removeHistoryEntry,
     clearHistory,

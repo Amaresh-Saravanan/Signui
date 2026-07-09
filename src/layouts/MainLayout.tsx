@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { Sidebar, MobileNav } from '../components/Sidebar';
@@ -9,19 +9,11 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ hideSidebar = false }: MainLayoutProps) {
-  // 1. Core Sidebar Layout State
+  // Sidebar collapse state. High-contrast / reduce-motion preferences are
+  // applied globally by AccessibilityEffects, driven by AppDataContext.
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem('signbridge.sidebar.collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  // 2. High Contrast State (Persistent with localStorage so it stays active on reload)
-  const [isHighContrast, setIsHighContrast] = useState(() => {
-    try {
-      return localStorage.getItem('signbridge.accessibility.highContrast') === 'true';
     } catch {
       return false;
     }
@@ -37,36 +29,10 @@ export function MainLayout({ hideSidebar = false }: MainLayoutProps) {
     });
   };
 
-  // 3. Listen for changes and toggle the class on the document root
-  useEffect(() => {
-    try {
-      localStorage.setItem('signbridge.accessibility.highContrast', String(isHighContrast));
-    } catch { }
-
-    if (isHighContrast) {
-      document.documentElement.classList.add('high-contrast');
-    } else {
-      document.documentElement.classList.remove('high-contrast');
-    }
-  }, [isHighContrast]);
-
-  // 4. Create a custom listener so the settings panel toggle can change this layout state
-  useEffect(() => {
-    const handleToggleEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setIsHighContrast(customEvent.detail);
-    };
-
-    window.addEventListener('toggle-high-contrast', handleToggleEvent);
-    return () => window.removeEventListener('toggle-high-contrast', handleToggleEvent);
-  }, []);
-
   return (
     <div
       className={cn(
         "min-h-screen bg-background flex flex-col transition-all duration-300",
-        // Automatically append high-contrast flags if active
-        isHighContrast && "high-contrast bg-[#050505]"
       )}
     >
       <Navbar hideSidebar={hideSidebar} />

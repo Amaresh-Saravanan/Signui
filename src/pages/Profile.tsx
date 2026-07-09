@@ -7,7 +7,12 @@ import { cn } from '../utils/cn';
 
 export function Profile() {
   const navigate = useNavigate();
-  const { state, stats } = useAppData();
+  const { state, stats, signOut } = useAppData();
+
+  const handleSignOut = () => {
+    signOut();
+    navigate('/');
+  };
 
   const firstName = state.user.firstName || '';
   const lastName = state.user.lastName || '';
@@ -63,7 +68,7 @@ export function Profile() {
             size="sm"
             fullWidth
             className="gap-2 h-9 text-xs font-bold rounded-xl border border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.12] text-red-500 transition-all duration-200 mt-auto"
-            onClick={() => navigate('/')}
+            onClick={handleSignOut}
           >
             <LogOut size={13} /> Sign out
           </Button>

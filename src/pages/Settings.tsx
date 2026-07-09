@@ -17,13 +17,14 @@ export function Settings() {
   const [notifications, setNotifications] = useState(state.preferences.notifications);
   const [localOnly, setLocalOnly] = useState(state.preferences.localOnly);
   const [reduceMotion, setReduceMotion] = useState(state.preferences.reduceMotion);
+  const [highContrast, setHighContrast] = useState(state.preferences.highContrast);
   const [autoExport, setAutoExport] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
     updateUserProfile({ firstName, lastName, email });
     setPrimaryLanguage(primaryLanguage);
-    updatePreferences({ notifications, localOnly, reduceMotion });
+    updatePreferences({ notifications, localOnly, reduceMotion, highContrast });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -78,9 +79,12 @@ export function Settings() {
             aria-label="Primary sign language"
           >
             {SUPPORTED_SIGN_LANGUAGES.map((language) => (
-              <option key={language.code} value={language.code}>{language.label}</option>
+              <option key={language.code} value={language.code} disabled={!language.available}>
+                {language.label}{language.available ? '' : ' — coming soon'}
+              </option>
             ))}
           </select>
+          <p className="text-[10px] text-text-secondary mt-2">Only American Sign Language has a live detection model today. Other languages are in development.</p>
         </div>
       </Card>
 
@@ -109,9 +113,17 @@ export function Settings() {
           <div className="flex items-center justify-between gap-6">
             <div>
               <p className="text-sm font-semibold text-text-primary">Reduce Dynamic Motion</p>
-              <p className="text-xs text-text-secondary mt-0.5">Smooths viewport transition structures and disables structural animations.</p>
+              <p className="text-xs text-text-secondary mt-0.5">Disables animations and viewport transitions across the app.</p>
             </div>
             <Toggle checked={reduceMotion} onChange={setReduceMotion} label="" />
+          </div>
+          <div className="h-px bg-border/50" />
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <p className="text-sm font-semibold text-text-primary">High Contrast</p>
+              <p className="text-xs text-text-secondary mt-0.5">Maximizes text and border contrast for improved legibility.</p>
+            </div>
+            <Toggle checked={highContrast} onChange={setHighContrast} label="" />
           </div>
           <div className="h-px bg-border/50" />
           <div className="flex items-center justify-between gap-6">

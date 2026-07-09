@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AppDataProvider } from './context/AppDataContext';
+import { AccessibilityEffects } from './context/AccessibilityEffects';
 import { MainLayout } from './layouts/MainLayout';
 
 // Route-level code splitting: each page loads on demand so the entry chunk
@@ -35,6 +36,7 @@ function App() {
   return (
     <ThemeProvider>
       <AppDataProvider>
+        <AccessibilityEffects>
         <BrowserRouter>
           <Suspense fallback={<PageFallback />}>
             <Routes>
@@ -62,6 +64,7 @@ function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
+        </AccessibilityEffects>
       </AppDataProvider>
     </ThemeProvider>
   );
