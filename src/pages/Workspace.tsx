@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check } from 'lucide-react';
+import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -17,6 +17,10 @@ const COMMIT_FRAMES = 8;
 const FLUSH_FRAMES = 22;
 // Minimum classifier confidence to accept a letter.
 const MIN_CONF = 0.55;
+// Below this, an accepted letter is still shown but visually flagged as an
+// uncertain guess (the geometric classifier is inherently ambiguous on the
+// closed-fist letter family — see docs/SIGN_DETECTION.md).
+const LOW_CONF = 0.7;
 
 type Mode = 'sign-to-text' | 'text-to-sign';
 
@@ -25,6 +29,7 @@ interface TranscriptEntry {
   time: string;
   text: string;
   conf?: number;
+  lowConfidence?: boolean;
   direction: 'outbound' | 'inbound' | 'meta';
 }
 
@@ -67,6 +72,7 @@ export function Workspace() {
   const candidateStableRef = useRef(0);
   const lastCommittedRef = useRef('');
   const wordBufferRef = useRef('');
+  const wordMinConfRef = useRef(1);
   const emptyFramesRef = useRef(0);
 
   const detecting = cameraOn && mode === 'sign-to-text';
@@ -101,8 +107,10 @@ export function Workspace() {
     };
   }, [detecting]);
 
-  // Draw the hand bounding box + landmarks onto the overlay canvas.
-  const drawOverlay = useCallback((landmarks: Landmark[] | null) => {
+  // Draw the hand bounding box + landmarks onto the overlay canvas. Box color
+  // flags whether the current letter guess is confident (emerald) or
+  // uncertain (ember) so the caution signal is visible right on the hand.
+  const drawOverlay = useCallback((landmarks: Landmark[] | null, confident: boolean) => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     if (!canvas || !video) return;
@@ -121,7 +129,7 @@ export function Workspace() {
       maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
     }
     const pad = 0.03;
-    ctx.strokeStyle = '#10b981';
+    ctx.strokeStyle = confident ? '#10b981' : '#EA580C';
     ctx.lineWidth = Math.max(2, w * 0.004);
     ctx.strokeRect((minX - pad) * w, (minY - pad) * h, (maxX - minX + pad * 2) * w, (maxY - minY + pad * 2) * h);
 
@@ -134,18 +142,19 @@ export function Workspace() {
     }
   }, []);
 
-  const commitWord = useCallback((word: string) => {
+  const commitWord = useCallback((word: string, minConf: number) => {
     const clean = word.trim();
     if (!clean) return;
+    const confPct = Math.round(minConf * 100);
     setTranscript((prev) => [
       ...prev,
-      { id: Date.now(), time: now(), text: clean, conf: Math.round(detected.conf * 100) || undefined, direction: 'outbound' },
+      { id: Date.now(), time: now(), text: clean, conf: confPct || undefined, lowConfidence: minConf < LOW_CONF, direction: 'outbound' },
     ]);
-    addHistoryEntry({ text: clean, type: 'sign-to-text', conf: Math.round(detected.conf * 100) || undefined, languageCode: activeLanguage });
-  }, [addHistoryEntry, activeLanguage, detected.conf]);
+    addHistoryEntry({ text: clean, type: 'sign-to-text', conf: confPct || undefined, languageCode: activeLanguage });
+  }, [addHistoryEntry, activeLanguage]);
 
   const handlePrediction = useCallback((p: SignPrediction) => {
-    drawOverlay(p.landmarks);
+    drawOverlay(p.landmarks, p.confidence >= LOW_CONF);
     setDetected((prev) =>
       prev.letter === p.letter && Math.abs(prev.conf - p.confidence) < 0.04
         ? prev
@@ -163,6 +172,7 @@ export function Workspace() {
       if (candidateStableRef.current === COMMIT_FRAMES && p.letter !== lastCommittedRef.current) {
         lastCommittedRef.current = p.letter;
         wordBufferRef.current += p.letter;
+        wordMinConfRef.current = Math.min(wordMinConfRef.current, p.confidence);
         setCurrentWord(wordBufferRef.current);
       }
     } else {
@@ -174,9 +184,11 @@ export function Workspace() {
       }
       if (emptyFramesRef.current === FLUSH_FRAMES && wordBufferRef.current) {
         const word = wordBufferRef.current;
+        const minConf = wordMinConfRef.current;
         wordBufferRef.current = '';
+        wordMinConfRef.current = 1;
         setCurrentWord('');
-        commitWord(word);
+        commitWord(word, minConf);
       }
     }
   }, [drawOverlay, commitWord]);
@@ -240,6 +252,13 @@ export function Workspace() {
 
   const resetSession = () => {
     setTranscript(makeSessionStart());
+    candidateRef.current = '';
+    candidateStableRef.current = 0;
+    lastCommittedRef.current = '';
+    wordBufferRef.current = '';
+    wordMinConfRef.current = 1;
+    emptyFramesRef.current = 0;
+    setCurrentWord('');
   };
 
   const currentLanguageLabel = SUPPORTED_SIGN_LANGUAGES.find(l => l.code === activeLanguage)?.label || activeLanguage;
@@ -376,17 +395,36 @@ export function Workspace() {
                       </div>
                     )}
 
-                    {/* Real-time confidence badge */}
-                    <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
-                      <span className="text-[10px] font-mono font-bold tracking-wide text-emerald-600 dark:text-emerald-400">
+                    {/* Real-time confidence badge — flags uncertain guesses */}
+                    <div className={cn(
+                      "absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border z-10 shadow-sm",
+                      detected.letter && detected.conf < LOW_CONF ? "border-ember/40" : "border-border/40"
+                    )}>
+                      {detected.letter && detected.conf < LOW_CONF && (
+                        <ShieldAlert size={11} className="text-ember" />
+                      )}
+                      <span className={cn(
+                        "text-[10px] font-mono font-bold tracking-wide",
+                        detected.letter
+                          ? detected.conf < LOW_CONF ? "text-ember" : "text-emerald-600 dark:text-emerald-400"
+                          : "text-text-secondary"
+                      )}>
                         {detected.letter ? `${Math.round(detected.conf * 100)}% Confidence` : 'Awaiting hand…'}
                       </span>
                     </div>
 
                     {/* Big detected letter (like the Python overlay) */}
                     {detected.letter && (
-                      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-20 h-20 rounded-2xl bg-surface/80 backdrop-blur-md border border-primary/30 shadow-lg">
-                        <span className="text-5xl font-bold gradient-text-primary">{detected.letter}</span>
+                      <div className={cn(
+                        "absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-surface/80 backdrop-blur-md border shadow-lg",
+                        detected.conf < LOW_CONF ? "border-ember/50 shadow-ember-glow" : "border-primary/30"
+                      )}>
+                        <span className={cn("text-5xl font-bold", detected.conf < LOW_CONF ? "text-ember" : "gradient-text-primary")}>
+                          {detected.letter}
+                        </span>
+                        {detected.conf < LOW_CONF && (
+                          <span className="text-[8px] font-mono font-bold text-ember/80 tracking-wide uppercase -mt-1">Uncertain</span>
+                        )}
                       </div>
                     )}
 
@@ -470,7 +508,13 @@ export function Workspace() {
                       <div className="flex items-center gap-2 mb-1 px-1">
                         <span className="text-[9px] font-mono text-text-secondary">{entry.time}</span>
                         {entry.conf && (
-                          <span className="text-[9px] font-mono font-bold text-primary">[{entry.conf}% accuracy]</span>
+                          <span className={cn(
+                            "flex items-center gap-1 text-[9px] font-mono font-bold",
+                            entry.lowConfidence ? "text-ember" : "text-primary"
+                          )}>
+                            {entry.lowConfidence && <ShieldAlert size={9} />}
+                            [{entry.conf}% accuracy]
+                          </span>
                         )}
                       </div>
                       <div
@@ -478,7 +522,9 @@ export function Workspace() {
                           'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed tracking-wide shadow-sm border',
                           entry.direction === 'inbound'
                             ? 'bg-primary text-white font-medium border-primary rounded-tr-none'
-                            : 'bg-surface-alt border-border text-text-primary rounded-tl-none'
+                            : entry.lowConfidence
+                              ? 'bg-ember/[0.06] border-ember/30 text-text-primary rounded-tl-none'
+                              : 'bg-surface-alt border-border text-text-primary rounded-tl-none'
                         )}
                       >
                         {entry.text}
