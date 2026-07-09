@@ -1,576 +1,436 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Mic, Camera, Zap, Shield, Globe, WifiOff, CheckCircle2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
+import {
+  ArrowRight, Mic, Camera, Zap, Shield, Eye, Smartphone,
+  Sparkles, Play, User
+} from 'lucide-react';
 import { Button } from '../components/Button';
-import { StrokeDivider } from '../components/SignStroke';
-import { SUPPORTED_SIGN_LANGUAGES } from '../constants/languages';
 
-/* ── Typewriter hook ──────────────────────────────────── */
-function useTypewriter(words: string[], speed = 60, pause = 2000) {
-  const [display, setDisplay] = useState('');
-  const [wordIndex, setWordIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
-  const [deleting, setDeleting] = useState(false);
+// Safe execution wrapper for the WebGL Shader Background
+const initShaderBackground = (canvas: HTMLCanvasElement | null) => {
+  if (!canvas) return;
 
-  useEffect(() => {
-    const current = words[wordIndex];
-    const timeout = setTimeout(() => {
-      if (!deleting) {
-        setDisplay(current.slice(0, charIndex + 1));
-        if (charIndex + 1 === current.length) {
-          setTimeout(() => setDeleting(true), pause);
-        } else {
-          setCharIndex((c) => c + 1);
-        }
-      } else {
-        setDisplay(current.slice(0, charIndex - 1));
-        if (charIndex - 1 === 0) {
-          setDeleting(false);
-          setWordIndex((w) => (w + 1) % words.length);
-          setCharIndex(0);
-        } else {
-          setCharIndex((c) => c - 1);
-        }
-      }
-    }, deleting ? speed / 2 : speed);
-    return () => clearTimeout(timeout);
-  }, [charIndex, deleting, wordIndex, words, speed, pause]);
+  function syncSize() {
+    if (!canvas) return;
+    const w = canvas.clientWidth || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
 
-  return display;
+  const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+  if (!gl) return;
+
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+varying vec2 v_texCoord;
+
+vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+float snoise(vec2 v){
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  vec2 i  = floor(v + dot(v, C.yy) );
+  vec2 x0 = v -   i + dot(i, C.xx);
+  vec2 i1;
+  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod(i, 289.0);
+  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m ;
+  m = m*m ;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 a0 = x - floor(x + 0.5);
+  vec3 g = a0 * vec3(x0.x,x12.xz) + h * vec3(x0.y,x12.yw);
+  return 130.0 * dot(m, g);
 }
 
-/* ── Live Demo visual inside hero ─────────────────────── */
-const DEMO_SEQUENCE = {
-  ISL: [
-    { text: 'Namaste, can you help me?' },
-    { text: 'Please wait one minute.' },
-    { text: 'Thank you for your support.' },
-  ],
-  ASL: [
-    { text: 'Hello, how are you?' },
-    { text: 'Where is the station?' },
-    { text: 'I need assistance.' },
-  ],
-  BSL: [
-    { text: 'Good afternoon, nice to meet you.' },
-    { text: 'Could you repeat that slowly?' },
-    { text: 'Thank you for helping today.' },
-  ],
-} as const;
+void main() {
+    vec2 uv = v_texCoord;
+    vec2 mouse = u_mouse / u_resolution;
+    
+    vec3 teal = vec3(0.11, 0.35, 0.31);
+    vec3 violet = vec3(0.08, 0.12, 0.28);
+    vec3 navy = vec3(0.02, 0.03, 0.06);
+    
+    float n1 = snoise(uv * 1.5 + u_time * 0.04);
+    float n2 = snoise(uv * 2.5 - u_time * 0.03);
+    float n3 = snoise(uv * 1.0 + mouse.x * 0.2 + u_time * 0.02);
+    
+    vec3 color = mix(navy, teal, n1 * 0.45 + 0.45);
+    color = mix(color, violet, n2 * 0.4);
+    color = mix(color, teal, n3 * 0.15);
+    
+    float noise = fract(sin(dot(uv, vec2(12.9898,78.233))) * 43758.5453);
+    color += (noise - 0.5) * 0.015;
+    
+    float d = distance(uv, mouse);
+    color += teal * (1.0 - smoothstep(0.0, 0.5, d)) * 0.05;
+    gl_FragColor = vec4(color, 1.0);
+}`;
 
-const PROCESS_STEPS = [
-  {
-    key: 'camera-on',
-    title: 'Camera wakes up',
-    sentence: 'The feed starts locally with no upload and hand landmarks are initialized on your device.',
-  },
-  {
-    key: 'sign-detected',
-    title: 'Signing is detected',
-    sentence: 'Hand motion is tracked frame-by-frame to identify gestures in ISL, ASL, or BSL contexts.',
-  },
-  {
-    key: 'translated',
-    title: 'Meaning is translated',
-    sentence: 'Detected signs are mapped into readable text in under 150ms for live conversation flow.',
-  },
-  {
-    key: 'delivered',
-    title: 'Message is delivered',
-    sentence: 'The result is shown and can be spoken instantly for hearing partners nearby.',
-  },
-] as const;
-
-const FAQS = [
-  {
-    q: 'Which sign languages are supported right now?',
-    a: 'SignBridge currently supports exactly three sign languages: ISL (India), ASL (US), and BSL (UK).',
-  },
-  {
-    q: 'Is my camera feed uploaded anywhere?',
-    a: 'No. Translation runs on-device. Camera frames stay local and are not sent to cloud servers.',
-  },
-  {
-    q: 'Can I use SignBridge offline?',
-    a: 'Yes for core translation after the app is loaded. Offline mode supports local inference for ISL/ASL/BSL.',
-  },
-  {
-    q: 'How accurate is translation?',
-    a: 'Word-level confidence is typically around 98% in supported environments, with quality improving in clear lighting and framing.',
-  },
-];
-
-function StepVisual({ step }: { step: (typeof PROCESS_STEPS)[number]['key'] }) {
-  if (step === 'camera-on') {
-    return (
-      <div className="relative h-24 rounded-xl border border-border bg-surface-alt overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <motion.div
-            className="w-16 h-12 rounded-lg border-2 border-primary/70"
-            animate={{ scale: [0.96, 1.02, 0.96] }}
-            transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-          />
-        </div>
-        <div className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-black/50 px-2 py-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-ember ember-pulse" />
-          <span className="text-[10px] font-mono-sb text-white/80">Cam On</span>
-        </div>
-      </div>
-    );
+  function cs(type: number, src: string): WebGLShader {
+    const s = gl!.createShader(type)!;
+    gl!.shaderSource(s, src);
+    gl!.compileShader(s);
+    return s;
   }
 
-  if (step === 'sign-detected') {
-    return (
-      <div className="relative h-24 rounded-xl border border-border bg-surface-alt overflow-hidden">
-        <svg viewBox="0 0 120 48" className="w-full h-full opacity-75">
-          {Array.from({ length: 10 }, (_, i) => (
-            <motion.circle
-              key={i}
-              cx={16 + (i % 5) * 18}
-              cy={14 + Math.floor(i / 5) * 16}
-              r="2"
-              fill="var(--color-primary)"
-              animate={{
-                cy: [14 + Math.floor(i / 5) * 16, 10 + Math.floor(i / 5) * 16, 14 + Math.floor(i / 5) * 16],
-              }}
-              transition={{ repeat: Infinity, duration: 1.4 + i * 0.07, ease: 'easeInOut' }}
-            />
-          ))}
-          <motion.path
-            d="M 16 14 L 34 14 L 52 18 M 34 14 L 34 30 M 34 30 L 24 38 M 34 30 L 44 38"
-            stroke="var(--color-primary)"
-            strokeWidth="1"
-            fill="none"
-            animate={{ opacity: [0.2, 0.6, 0.2] }}
-            transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-          />
-        </svg>
-      </div>
-    );
+  const prog = gl.createProgram()!;
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+  const handleMouseMove = (event: MouseEvent) => {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  };
+
+  window.addEventListener('mousemove', handleMouseMove);
+
+  let animationFrameId: number;
+  function render(t: number) {
+    if (!gl || !canvas) return;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    animationFrameId = requestAnimationFrame(render);
   }
+  render(0);
 
-  if (step === 'translated') {
-    return (
-      <div className="relative h-24 rounded-xl border border-border bg-surface-alt flex items-center px-4">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key="translated-text"
-            className="text-sm text-text-primary"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25 }}
-          >
-            "Please wait one minute."
-          </motion.p>
-        </AnimatePresence>
-      </div>
-    );
-  }
+  return () => {
+    window.removeEventListener('mousemove', handleMouseMove);
+    cancelAnimationFrame(animationFrameId);
+  };
+};
 
-  return (
-    <div className="relative h-24 rounded-xl border border-border bg-surface-alt overflow-hidden">
-      <motion.div
-        className="absolute left-3 top-5 rounded-lg bg-primary text-white text-xs px-2 py-1"
-        animate={{ x: [0, 90, 0] }}
-        transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-      >
-        Delivered
-      </motion.div>
-      <div className="absolute right-3 bottom-5 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text-secondary">
-        Voice output
-      </div>
-    </div>
-  );
-}
-
-function LiveDemoPanel() {
-  const [activeCode, setActiveCode] = useState<'ISL' | 'ASL' | 'BSL'>('ASL');
-  const [current, setCurrent] = useState(0);
-  const activeLanguage = SUPPORTED_SIGN_LANGUAGES.find((language) => language.code === activeCode) ?? SUPPORTED_SIGN_LANGUAGES[1];
-  const activeSequence = DEMO_SEQUENCE[activeCode];
-
-  useEffect(() => {
-    setCurrent(0);
-    const ticker = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % activeSequence.length);
-    }, 2800);
-    return () => clearInterval(ticker);
-  }, [activeCode, activeSequence.length]);
-
-  return (
-    <div className="relative w-full max-w-2xl mx-auto">
-      {/* Panel */}
-      <div className="rounded-2xl border border-border bg-surface overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.25)]">
-        {/* Top chrome bar */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-surface-alt">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-error opacity-80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-[#F2994A] opacity-80" />
-            <div className="w-2.5 h-2.5 rounded-full bg-success opacity-80" />
-          </div>
-          <div className="flex-1 flex items-center justify-center gap-2">
-            {/* Ember live dot */}
-            <span className="w-1.5 h-1.5 rounded-full bg-ember ember-pulse" />
-            <span className="text-xs font-mono-sb text-text-secondary">Live · {activeCode} Engine {activeLanguage.engineVersion}</span>
-          </div>
-        </div>
-
-        <div className="px-5 pt-3 pb-2 border-b border-border bg-surface">
-          <p className="text-[10px] font-mono-sb text-text-secondary uppercase tracking-widest mb-2">Mini demo language</p>
-          <div className="inline-flex gap-1 rounded-lg border border-border bg-surface-alt p-1">
-            {SUPPORTED_SIGN_LANGUAGES.map((language) => (
-              <button
-                key={language.code}
-                onClick={() => setActiveCode(language.code)}
-                className={`px-3 py-1.5 rounded-md text-xs font-mono-sb transition-colors ${
-                  activeCode === language.code
-                    ? 'bg-primary text-white'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
-                aria-label={`Switch demo to ${language.label}`}
-              >
-                {language.code}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Camera feed mock */}
-        <div className="relative bg-[#0D0A14] aspect-video flex items-center justify-center overflow-hidden">
-          <div className="w-48 h-32 rounded-xl border border-border bg-surface-alt/70" aria-hidden="true" />
-
-          {/* Accuracy badge */}
-          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-md bg-black/50 backdrop-blur text-[11px] font-mono-sb text-success">
-            99.2% conf.
-          </div>
-        </div>
-
-        {/* Translation output */}
-        <div className="px-5 py-4 bg-surface">
-          <div className="text-[10px] font-mono-sb text-text-secondary uppercase tracking-widest mb-2">Output</div>
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={`${activeCode}-${current}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="text-xl font-general font-semibold text-text-primary"
-              style={{ fontFamily: 'var(--font-general)' }}
-            >
-              "{activeSequence[current].text}"
-            </motion.p>
-          </AnimatePresence>
-          <div className="mt-3 flex items-center gap-4 text-[11px] font-mono-sb text-text-secondary">
-            <span>{activeCode} → EN</span>
-            <span>·</span>
-            <span>120ms latency</span>
-            <span>·</span>
-            <span className="text-success">Edge processing</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Feature list ──────────────────────────────────────── */
-const FEATURES = [
-  {
-    big: true,
-    icon: Zap,
-    title: 'Edge-first inference that keeps conversations natural',
-    body: 'SignBridge runs fully on-device with quantized hand-tracking models tuned for ISL, ASL, and BSL. That means camera frames stay local, latency stays low (typically 120-150ms), and the conversation keeps flowing without waiting on cloud round trips.',
-  },
-  { icon: Globe,   title: 'Focused language support',  body: 'Purpose-built models for ISL (India), ASL (US), and BSL (UK) only.' },
-  { icon: Mic,     title: 'Instant voice handoff',    body: 'Translated text can be spoken aloud for hearing participants in real time.' },
-  { icon: Shield,  title: 'Privacy by default', body: 'No camera uploads, no remote storage, and local-first processing throughout.' },
-  { icon: WifiOff, title: 'Offline-ready workflow', body: 'Core translation works after initial load, useful in low-connectivity environments.' },
-];
-
-/* ── Landing Page ──────────────────────────────────────── */
 export function Landing() {
-  const rotating = useTypewriter(['ISL in India.', 'ASL in the US.', 'BSL in the UK.'], 55, 1500);
+  const [activeTab, setActiveTab] = useState<'ISL' | 'ASL' | 'BSL'>('ASL');
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
+  };
 
   return (
-    <div className="min-h-screen bg-background text-text-primary">
+    <div className="relative min-h-screen text-white font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden bg-[#02040a]">
 
-      {/* ── HERO ────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 pt-16 pb-20">
-        <div className="max-w-xl mb-12">
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="text-xs font-mono-sb uppercase tracking-widest text-primary mb-5"
-          >
-            Motion → Meaning
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.06 }}
-            className="text-5xl md:text-6xl font-general font-semibold leading-[1.08] tracking-tight mb-6"
-            style={{ fontFamily: 'var(--font-general)' }}
-          >
-            Your hands are already speaking.{' '}
-            <span className="text-primary">We give them a voice.</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.14 }}
-            className="text-lg text-text-secondary mb-8 leading-relaxed"
-          >
-            Real-time sign language translation for exactly three languages.
-            <br />
-            <span className="text-text-primary">{rotating}</span>
-            <br />
-            No cloud upload. Low latency. Clear communication.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.22 }}
-            className="flex flex-wrap gap-3"
-          >
-            <Link to="/auth">
-              <Button size="lg" className="gap-2">
-                Try SignBridge free <ArrowRight size={16} />
+      {/* ── INTERACTIVE SHADER BACKDROP ───────────────────── */}
+      <div className="fixed inset-0 w-full h-full pointer-events-none z-0 opacity-80 mix-blend-screen">
+        <canvas
+          ref={(node) => { if (node) initShaderBackground(node); }}
+          className="w-full h-full block"
+        />
+      </div>
+
+      <div className="fixed inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none z-1" />
+
+      {/* ── LANDING INTERFACE CONTAINER ── */}
+      <div className="relative z-10 w-full">
+
+        {/* HEADER NAVIGATION */}
+        <header className="sticky top-0 z-50 backdrop-blur-md border-b border-white/[0.04] bg-[#030712]/30 px-6 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
+              <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">SignBridge</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            </div>
+            <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
+              <a href="#features" className="hover:text-cyan-400 transition-colors">Features</a>
+              <a href="#how-it-works" className="hover:text-cyan-400 transition-colors">How It Works</a>
+              <a href="#about" className="hover:text-cyan-400 transition-colors">About</a>
+            </nav>
+            <div className="flex items-center gap-4">
+              <Link to="/auth" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Log in</Link>
+              <Link to="/workspace">
+                <Button size="sm" className="bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-500 hover:to-teal-500 text-black font-semibold rounded-full px-5 py-2 shadow-lg shadow-cyan-500/10 transition-all duration-300 hover:scale-[1.02]">
+                  Get Started
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* HERO SECTION */}
+        <motion.section
+          variants={containerVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}
+          className="max-w-7xl mx-auto px-6 pt-24 pb-28 grid grid-cols-1 lg:grid-cols-12 gap-16 items-center"
+        >
+          <motion.div variants={itemVariants} className="lg:col-span-6 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-500/20 bg-cyan-500/5 text-cyan-300 text-xs font-medium font-mono mb-6 backdrop-blur-md">
+              <Sparkles size={12} className="animate-pulse" /> Effortless Conversations
+            </div>
+            <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.12] mb-6">
+              Breaking the <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-indigo-400">Distance</span> with Ease
+            </h1>
+            <p className="text-base md:text-lg text-gray-400 mb-8 leading-relaxed max-w-lg">
+              Connect instantly using our smart sign language translator. Experience instant voice generation, visual helpers, and fluid responses for everyday interactions.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/workspace">
+                <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-500 hover:to-teal-500 text-black font-bold rounded-full px-7 py-3.5 flex items-center gap-2 group shadow-lg transition-all">
+                  Start Translating <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Button variant="secondary" size="lg" className="border border-white/10 hover:border-white/20 text-white font-medium rounded-full px-7 py-3.5 bg-white/[0.02] backdrop-blur-md flex items-center gap-2 transition-all">
+                <Play size={16} fill="white" className="text-white" /> See How It Works
               </Button>
-            </Link>
-            <Link to="/workspace">
-              <Button variant="secondary" size="lg">
-                <Camera size={16} /> Open workspace
-              </Button>
-            </Link>
+            </div>
           </motion.div>
-        </div>
 
-        {/* Live Demo — THE hero visual */}
-        <motion.div
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <LiveDemoPanel />
-        </motion.div>
-      </section>
-
-      {/* ── STROKE DIVIDER ──────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-5 md:px-10">
-        <StrokeDivider />
-      </div>
-
-      {/* ── LANGUAGE COVERAGE ───────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 py-20">
-        <p className="text-xs font-mono-sb uppercase tracking-widest text-text-secondary mb-3">Language Coverage</p>
-        <h2 className="text-3xl font-general font-semibold mb-10" style={{ fontFamily: 'var(--font-general)' }}>
-          Supported sign languages, with clear regional scope.
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {SUPPORTED_SIGN_LANGUAGES.map((language, i) => (
-            <motion.div
-              key={language.code}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: i * 0.08 }}
-              className="rounded-2xl border border-border bg-surface p-6 hover:border-primary/40 transition-colors"
-            >
-              <p className="text-xs font-mono-sb text-primary uppercase tracking-widest mb-3">{language.code}</p>
-              <h3 className="text-xl font-general font-semibold mb-2" style={{ fontFamily: 'var(--font-general)' }}>
-                {language.label}
-              </h3>
-              <p className="text-sm text-text-secondary mb-4">Primary region: {language.region}</p>
-              <div className="text-xs font-mono-sb text-text-primary rounded-md bg-surface-alt border border-border px-3 py-2 inline-block">
-                Direction: {language.direction}
+          {/* Interactive Screen Preview */}
+          <motion.div variants={itemVariants} className="lg:col-span-6 relative flex justify-center">
+            <div className="w-full max-w-[500px] aspect-[4/3] rounded-3xl border border-white/[0.06] bg-white/[0.01] backdrop-blur-xl p-6 shadow-2xl relative flex flex-col justify-between overflow-hidden group hover:border-white/[0.12] transition-all duration-500">
+              <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="flex items-center justify-between border-b border-white/[0.05] pb-3 text-xs text-gray-400 font-medium">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  <span>Visual Preview Window</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {['ISL', 'ASL', 'BSL'].map((tab) => (
+                    <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-2 py-0.5 rounded transition-all ${activeTab === tab ? 'bg-white/10 text-white border border-white/10' : 'hover:text-white'}`}>{tab}</button>
+                  ))}
+                </div>
               </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 py-6">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-500/10 to-indigo-500/10 border border-white/10 flex items-center justify-center text-cyan-300 shadow-inner group-hover:scale-105 transition-transform duration-500">
+                  <User size={28} />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-sm font-semibold tracking-wide text-gray-200 block">Expressive Hand and Face Tracking</span>
+                  <p className="text-xs text-gray-500 max-w-xs">Smart gestures are calibrated and ready to translate.</p>
+                </div>
+              </div>
+              <div className="w-full bg-black/40 backdrop-blur-md border border-white/[0.05] rounded-xl px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
+                  <span className="text-xs text-gray-400 tracking-wider">Smooth Motion Active</span>
+                </div>
+                <span className="text-[10px] font-semibold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">Live Sync</span>
+              </div>
+            </div>
+          </motion.div>
+        </motion.section>
 
-      <div className="max-w-6xl mx-auto px-5 md:px-10">
-        <StrokeDivider />
-      </div>
+        {/* LOGO STRIP */}
+        <section className="border-y border-white/[0.04] bg-white/[0.01] backdrop-blur-sm py-6 overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 flex flex-col items-center gap-4">
+            <p className="text-[10px] tracking-[0.25em] uppercase text-gray-500">Trusted for Beautiful Communication</p>
+            <div className="w-full flex flex-wrap justify-between items-center opacity-40 text-[11px] font-bold uppercase tracking-[0.2em] gap-6 px-4 text-gray-400">
+              {['Silicon Labs', 'Tech For All', 'Accessibility Co', 'Bridge Global', 'Inclusive Design'].map((brand) => (
+                <span key={brand} className="hover:text-white transition-colors cursor-default">{brand}</span>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      {/* ── HOW IT WORKS ───────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 py-20">
-        <p className="text-xs font-mono-sb uppercase tracking-widest text-text-secondary mb-3">How It Works</p>
-        <h2 className="text-3xl font-general font-semibold mb-10" style={{ fontFamily: 'var(--font-general)' }}>
-          A real-time translation path you can follow at a glance.
-        </h2>
-        <div className="flex flex-col gap-5">
-          {PROCESS_STEPS.map((step, index) => (
-            <motion.div
-              key={step.key}
-              initial={{ opacity: 0, y: 18 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.45, delay: index * 0.06 }}
-              className="grid grid-cols-1 md:grid-cols-[84px,1fr,260px] gap-4 border border-border rounded-2xl bg-surface p-5 md:p-6"
-            >
-              <div className="text-xs font-mono-sb text-primary">Step {index + 1}</div>
+        {/* FEATURES GRID */}
+        <section id="features" className="max-w-7xl mx-auto px-6 py-28">
+          <div className="max-w-2xl mb-20">
+            <span className="text-xs uppercase tracking-widest text-cyan-400 font-bold block mb-2">Beautifully Simple</span>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">Fast, conversational translations created for everyone.</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <div className="md:col-span-7 rounded-2xl border border-white/[0.04] bg-white/[0.01] backdrop-blur-md p-8 flex flex-col justify-between group hover:border-white/[0.1] hover:bg-white/[0.02] transition-all duration-300 shadow-xl">
+              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-10"><Zap size={22} /></div>
               <div>
-                <h3 className="text-lg font-general font-semibold mb-2" style={{ fontFamily: 'var(--font-general)' }}>{step.title}</h3>
-                <p className="text-sm text-text-secondary leading-relaxed">{step.sentence}</p>
+                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">Instant Responses</h3>
+                <p className="text-sm text-gray-400 leading-relaxed">Converts sign language into spoken words without missing a beat, ensuring smooth and uninterrupted conversations.</p>
               </div>
-              <StepVisual step={step.key} />
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── FEATURES ────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 py-20">
-        <p className="text-xs font-mono-sb uppercase tracking-widest text-text-secondary mb-3">Why SignBridge</p>
-        <h2
-          className="text-3xl font-general font-semibold mb-12 max-w-2xl"
-          style={{ fontFamily: 'var(--font-general)' }}
-        >
-          Built around real signing environments, with one core strength and practical supporting tools.
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-5">
-          {/* Big feature */}
-          {FEATURES.filter((f) => f.big).map((f) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="md:col-span-4 border border-border rounded-2xl p-7 bg-surface hover:border-primary/40 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary-soft flex items-center justify-center text-primary mb-5">
-                <f.icon size={20} />
+            </div>
+            <div className="md:col-span-5 rounded-2xl border border-white/[0.04] bg-white/[0.01] backdrop-blur-md p-8 flex flex-col justify-between group hover:border-white/[0.1] hover:bg-white/[0.02] transition-all duration-300 shadow-xl">
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-10"><Sparkles size={22} /></div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">Sign-to-Text</h3>
+                <p className="text-sm text-gray-400 leading-relaxed">Reads complex signs and movements perfectly, creating beautiful, natural sentences on your screen.</p>
               </div>
-              <h3 className="text-xl font-general font-semibold mb-3" style={{ fontFamily: 'var(--font-general)' }}>
-                {f.title}
-              </h3>
-              <p className="text-text-secondary leading-relaxed">{f.body}</p>
-            </motion.div>
-          ))}
-
-          {/* Small features */}
-          <div className="md:col-span-2 grid grid-cols-1 gap-5">
-            {FEATURES.filter((f) => !f.big).map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: (i + 1) * 0.07 }}
-              className="border border-border rounded-2xl p-5 bg-surface hover:border-primary/40 transition-colors"
-            >
-              <div className="w-9 h-9 rounded-lg bg-primary-soft flex items-center justify-center text-primary mb-4">
-                <f.icon size={18} />
+            </div>
+            <div className="md:col-span-5 rounded-2xl border border-white/[0.04] bg-white/[0.01] backdrop-blur-md p-8 flex flex-col justify-between group hover:border-white/[0.1] hover:bg-white/[0.02] transition-all duration-300 shadow-xl">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-10"><Mic size={22} /></div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2 group-hover:text-emerald-400 transition-colors">Speech-to-Sign</h3>
+                <p className="text-sm text-gray-400 leading-relaxed">Turn spoken words into smooth visual motion guides right on your display instantly.</p>
               </div>
-              <h3 className="text-base font-general font-semibold mb-2" style={{ fontFamily: 'var(--font-general)' }}>
-                {f.title}
-              </h3>
-              <p className="text-sm text-text-secondary leading-relaxed">{f.body}</p>
-            </motion.div>
+            </div>
+            <div className="md:col-span-7 rounded-2xl border border-cyan-500/[0.1] bg-gradient-to-br from-cyan-950/10 to-white/[0.01] backdrop-blur-md p-8 flex flex-col justify-between relative overflow-hidden group hover:border-cyan-500/20 transition-all duration-300 shadow-xl">
+              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-14"><Shield size={22} /></div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-2">Safe and Secure</h3>
+                <p className="text-sm text-gray-400 leading-relaxed max-w-md">Your translations happen straight on your machine. Your camera feed, audio, and private transcripts are completely safe with you.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* WORKSPACE PREVIEW */}
+        <section className="border-y border-white/[0.04] py-24 bg-black/10 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-6 text-center mb-16">
+            <h2 className="text-3xl font-bold mb-3 text-white tracking-tight">Try Live Communication</h2>
+            <p className="text-sm text-gray-400 max-w-md mx-auto">A quick look into the simple interaction workspace built for real-time engagement.</p>
+          </div>
+          <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="rounded-2xl border border-white/[0.04] bg-white/[0.01] backdrop-blur-md aspect-[3/4] flex flex-col justify-between p-5 shadow-2xl relative group hover:border-white/[0.1] transition-all">
+              <div className="flex items-center justify-between">
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase px-2.5 py-1 rounded border border-emerald-500/30 tracking-wider animate-pulse">Live Feed</span>
+                <span className="text-[10px] text-gray-500 font-medium">CAMERA_ON</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
+                <div className="p-4 rounded-full bg-white/[0.01] border border-white/[0.05]"><Camera size={32} className="stroke-[1.2] text-gray-400" /></div>
+                <span className="text-xs font-medium tracking-wide text-gray-400">Camera Active</span>
+              </div>
+              <div className="w-full h-1 bg-white/[0.08] rounded-full overflow-hidden"><div className="w-1/3 h-full bg-cyan-400 rounded-full" /></div>
+            </div>
+            <div className="rounded-2xl border border-white/[0.06] bg-black/20 backdrop-blur-md aspect-[3/4] flex flex-col justify-between p-5 shadow-2xl">
+              <div className="flex-1 space-y-4 overflow-y-auto pt-4 text-xs pr-1">
+                <div className="max-w-[85%] bg-white/[0.03] border border-white/[0.05] rounded-2xl rounded-tl-none p-3.5 text-gray-300">"Hello! How can I help you today?"</div>
+                <div className="max-w-[85%] ml-auto bg-cyan-950/20 border border-cyan-500/20 rounded-2xl rounded-tr-none p-3.5 text-cyan-200">
+                  <span className="block text-[9px] uppercase tracking-wider text-cyan-400 mb-1">Translated Sign</span>"I'm looking for the nearest train station."
+                </div>
+              </div>
+              <div className="pt-4 flex items-center justify-between border-t border-white/[0.05] mt-4">
+                <div className="flex items-center gap-3 text-gray-400">
+                  <button className="hover:text-cyan-400 p-1.5 rounded-lg"><Mic size={16} /></button>
+                  <button className="hover:text-cyan-400 p-1.5 rounded-lg"><Camera size={16} /></button>
+                </div>
+                <button className="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-red-500/20 transition-all">End Call</button>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/[0.04] bg-white/[0.01] backdrop-blur-md aspect-[3/4] flex flex-col justify-between p-5 shadow-2xl group hover:border-white/[0.1] transition-all">
+              <div className="flex items-center justify-end"><span className="bg-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase px-2.5 py-1 rounded border border-indigo-500/30">Video Out</span></div>
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-3">
+                <div className="w-14 h-14 rounded-full border border-white/10 bg-white/[0.01] flex items-center justify-center text-gray-300"><User size={22} /></div>
+                <span className="text-xs font-medium tracking-wide text-gray-400">Motion Helper Stream</span>
+              </div>
+              <div className="h-1" />
+            </div>
+          </div>
+        </section>
+
+        {/* TIMELINE */}
+        <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-28">
+          <div className="text-center mb-20">
+            <span className="text-xs uppercase tracking-widest text-cyan-400 font-bold block mb-2">Simplicity First</span>
+            <h2 className="text-3xl font-bold text-white tracking-tight">Four simple steps to seamless interaction</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
+            {[
+              { num: '01', title: 'Activate', desc: 'Securely connect your camera or mic.' },
+              { num: '02', title: 'Choose Dialect', desc: 'Pick your preferred style of signing.' },
+              { num: '03', title: 'Translate', desc: 'Have natural conversations without delays.' },
+              { num: '04', title: 'Save & Review', desc: 'Keep helpful logs to review your conversations later.' }
+            ].map((step) => (
+              <div key={step.num} className="text-center flex flex-col items-center group">
+                <div className="w-12 h-12 rounded-full border border-white/[0.04] bg-white/[0.01] backdrop-blur-md flex items-center justify-center text-xs font-bold mb-5 text-gray-400 group-hover:border-cyan-400 group-hover:text-cyan-400 transition-all">{step.num}</div>
+                <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
+                <p className="text-xs text-gray-400 max-w-[220px] leading-relaxed">{step.desc}</p>
+              </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── TRUST ──────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="md:col-span-2 rounded-2xl border border-border bg-surface p-7">
-            <p className="text-xs font-mono-sb uppercase tracking-widest text-text-secondary mb-3">Trust</p>
-            <h2 className="text-3xl font-general font-semibold mb-4" style={{ fontFamily: 'var(--font-general)' }}>
-              Honest performance and privacy claims.
-            </h2>
-            <p className="text-sm text-text-secondary leading-relaxed mb-6">
-              We do not use fabricated social proof. Instead, we publish measurable quality indicators and local-processing guarantees.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <div className="rounded-lg border border-border bg-surface-alt px-4 py-3">
-                <p className="text-xs font-mono-sb text-text-secondary mb-1">Average confidence</p>
-                <p className="text-xl font-general font-semibold" style={{ fontFamily: 'var(--font-general)' }}>98.4%</p>
-              </div>
-              <div className="rounded-lg border border-border bg-surface-alt px-4 py-3">
-                <p className="text-xs font-mono-sb text-text-secondary mb-1">Local processing</p>
-                <p className="text-xl font-general font-semibold" style={{ fontFamily: 'var(--font-general)' }}>100%</p>
+        {/* ACCESSIBILITY FEATURE BANNER */}
+        <section className="max-w-7xl mx-auto px-6 py-6 mb-20">
+          <div className="rounded-3xl border border-white/[0.04] bg-gradient-to-br from-white/[0.01] to-transparent backdrop-blur-xl p-8 md:p-12 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center shadow-2xl">
+            <div className="lg:col-span-6 space-y-6">
+              <span className="text-xs uppercase tracking-widest text-indigo-400 font-bold block">Built For Everyone</span>
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Interfaces designed to listen to your needs.</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-200"><Eye size={16} className="text-cyan-400" /> Easy to Read</div>
+                  <p className="text-xs text-gray-400">High contrast layouts designed to look comfortable in any light.</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-200"><Smartphone size={16} className="text-cyan-400" /> Assistive App Setup</div>
+                  <p className="text-xs text-gray-400">Works beautifully with screen utilities and sound enhancements right out of the box.</p>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="flex items-center gap-2 mb-4 text-success">
-              <CheckCircle2 size={18} />
-              <span className="text-sm font-semibold">Privacy commitment</span>
+            <div className="lg:col-span-6 bg-black/20 border border-white/[0.04] rounded-2xl h-64 flex flex-col items-center justify-center text-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-300"><User size={24} /></div>
+              <span className="text-xs tracking-widest uppercase text-teal-400 font-bold">Inclusive Environment</span>
             </div>
-            <ul className="text-sm text-text-secondary leading-relaxed space-y-3">
-              <li>Camera frames are processed on-device.</li>
-              <li>No background cloud upload for translation.</li>
-              <li>Session data stays in local app state unless exported by you.</li>
-            </ul>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── FAQ ────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 pb-24">
-        <p className="text-xs font-mono-sb uppercase tracking-widest text-text-secondary mb-3">FAQ</p>
-        <h2 className="text-3xl font-general font-semibold mb-8" style={{ fontFamily: 'var(--font-general)' }}>
-          Practical questions before you start.
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {FAQS.map((item, index) => (
-            <motion.div
-              key={item.q}
-              initial={{ opacity: 0, y: 14 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.35, delay: index * 0.05 }}
-              className="rounded-xl border border-border bg-surface p-5"
-            >
-              <h3 className="text-base font-general font-semibold mb-2" style={{ fontFamily: 'var(--font-general)' }}>{item.q}</h3>
-              <p className="text-sm text-text-secondary leading-relaxed">{item.a}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── CTA ─────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-5 md:px-10 pb-24">
-        <div className="border border-primary/30 rounded-2xl bg-primary-soft p-10 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-            <h2 className="text-2xl font-general font-semibold mb-1" style={{ fontFamily: 'var(--font-general)' }}>
-              Ready to translate?
-            </h2>
-            <p className="text-text-secondary">Try ISL, ASL, or BSL instantly in the workspace.</p>
-          </div>
-          <Link to="/workspace">
-            <Button size="lg" className="shrink-0">
-              Open workspace <ArrowRight size={16} />
-            </Button>
-          </Link>
-        </div>
-      </section>
-
-      {/* ── FOOTER ──────────────────────────────────────── */}
-      <footer className="border-t border-border py-8 px-5 md:px-10">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-text-secondary">
-          <div className="flex items-center gap-2 font-general font-semibold text-text-primary" style={{ fontFamily: 'var(--font-general)' }}>
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
-              <Camera size={13} className="text-white" />
+        {/* FOOTER */}
+        <footer className="border-t border-white/[0.04] bg-[#02050c]/60 backdrop-blur-md px-6 py-16 text-xs text-gray-500">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12">
+            <div className="md:col-span-4 space-y-4">
+              <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">SignBridge <span className="w-1 h-1 rounded-full bg-cyan-400" /></h3>
+              <p className="text-gray-400 leading-relaxed max-w-xs">Helping clear out global language gaps through natural, direct translation tools.</p>
             </div>
-            SignBridge
+            <div className="md:col-span-2 space-y-3">
+              <h4 className="font-semibold text-white tracking-wider uppercase text-[10px]">Product</h4>
+              <ul className="space-y-2">
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Workspace</a></li>
+              </ul>
+            </div>
+            <div className="md:col-span-2 space-y-3">
+              <h4 className="font-semibold text-white tracking-wider uppercase text-[10px]">Company</h4>
+              <ul className="space-y-2">
+                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
+              </ul>
+            </div>
+            <div className="md:col-span-4 space-y-3">
+              <h4 className="font-semibold text-white tracking-wider uppercase text-[10px]">Privacy & Trust</h4>
+              <p className="text-gray-400 leading-relaxed max-w-xs">Everything you translate stays on your dashboard. No global profiling, tracking, or unexpected logs.</p>
+            </div>
           </div>
-          <p className="font-mono-sb text-xs">© 2026 SignBridge — Motion into meaning.</p>
-          <nav className="flex gap-5">
-            <Link to="/about" className="hover:text-text-primary transition-colors">About</Link>
-            <Link to="/contact" className="hover:text-text-primary transition-colors">Contact</Link>
-          </nav>
-        </div>
-      </footer>
+          <div className="max-w-7xl mx-auto mt-12 pt-6 border-t border-white/[0.02] flex flex-col sm:flex-row justify-between items-center gap-4 text-gray-600 font-medium">
+            <p>© 2026 SignBridge. Making communication clear.</p>
+          </div>
+        </footer>
+
+      </div>
     </div>
   );
 }

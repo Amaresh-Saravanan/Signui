@@ -49,13 +49,17 @@ export function Phrasebook() {
       {Object.keys(filteredData).length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <SignStroke variant="empty-state" color="var(--color-border)" width={100} height={90} className="mb-5 opacity-60" />
-          <p className="font-semibold text-text-secondary mb-1">No saved phrases yet</p>
-          <p className="text-sm text-text-secondary mb-5">
-            Save phrases from your next translation — they'll appear here for quick access.
+          <p className="font-semibold text-text-secondary mb-1">
+            {search ? 'No phrases found' : 'No saved phrases yet'}
           </p>
-          <Button variant="secondary" size="sm">
-            <Plus size={14} className="mr-1" /> Add your first phrase
-          </Button>
+          <p className="text-sm text-text-secondary mb-5">
+            {search ? `No results matching "${search}"` : 'Content will appear here after backend integration.'}
+          </p>
+          {!search && (
+            <Button variant="secondary" size="sm">
+              <Plus size={14} className="mr-1" /> Add your first phrase
+            </Button>
+          )}
         </div>
       ) : (
         Object.entries(filteredData).map(([category, phrases]) => (

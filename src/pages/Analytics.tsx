@@ -24,7 +24,7 @@ export function Analytics() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-10">
+    <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-10 page-enter">
       <div>
         <h1 className="text-2xl font-general font-semibold mb-0.5" style={{ fontFamily: 'var(--font-general)' }}>
           Analytics
@@ -64,8 +64,8 @@ export function Analytics() {
         <div className="flex flex-col gap-4">
           <Card>
             <div className="text-[10px] font-mono-sb uppercase tracking-widest text-text-secondary mb-2">Avg. latency</div>
-            <div className="text-4xl font-general font-semibold mb-1" style={{ fontFamily: 'var(--font-general)' }}>120ms</div>
-            <p className="text-xs text-text-secondary">Edge inference · no cloud</p>
+            <div className="text-4xl font-general font-semibold mb-1" style={{ fontFamily: 'var(--font-general)' }}>—</div>
+            <p className="text-xs text-text-secondary">Available after backend integration</p>
           </Card>
           <Card>
             <div className="text-[10px] font-mono-sb uppercase tracking-widest text-text-secondary mb-2">Avg. confidence</div>
