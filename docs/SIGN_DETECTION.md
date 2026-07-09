@@ -44,10 +44,24 @@ Workspace UI              (bounding box, live letter, word builder, transcript)
 - `public/models/hand_landmarker.task` — MediaPipe hand model (~7.8 MB)
 - `public/wasm/*` — MediaPipe vision WASM runtime
 
+## Classifier coverage
+
+`classifyASL` derives per-finger curl states (extended / half / closed), hand
+orientation, index–middle spread & crossing, and thumb position, then matches
+them against the alphabet:
+
+- **Reliable:** A, B, C, D, F, G, H, I, K, L, O, R, U, V, W, X, Y
+- **Lower confidence (ambiguous from landmarks):** E, S, T, M, N, P, Q
+- **Not supported:** J and Z are *motion* gestures and cannot be recognized from
+  a single frame.
+
+Thresholds in `aslClassifier.ts` are reasonable defaults and may need on-device
+tuning for a given camera/user.
+
 ## Using a custom-trained model instead
 
-The geometric classifier recognizes clear, distinct ASL letters but is a
-heuristic, not a trained model. To plug in a higher-accuracy model:
+The geometric classifier is a heuristic, not a trained model. To plug in a
+higher-accuracy model:
 
 1. Run the original `collect_data.py` + `train_model.py` to produce `model.p`.
 2. Export it to ONNX (`skl2onnx`) and place the `.onnx` in `public/models/`.
