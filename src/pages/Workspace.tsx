@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check } from 'lucide-react';
 import { Button } from '../components/Button';
@@ -8,6 +8,15 @@ import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
 import { cn } from '../utils/cn';
 import { SUPPORTED_SIGN_LANGUAGES } from '../constants/languages';
 import { useAppData } from '../context/AppDataContext';
+import { useSignDetector, type SignPrediction } from '../hooks/useSignDetector';
+import type { Landmark } from '../lib/aslClassifier';
+
+// Frames a letter must stay stable before it is committed to the word buffer.
+const COMMIT_FRAMES = 8;
+// Frames of no-hand before the current word is flushed to the transcript.
+const FLUSH_FRAMES = 22;
+// Minimum classifier confidence to accept a letter.
+const MIN_CONF = 0.55;
 
 type Mode = 'sign-to-text' | 'text-to-sign';
 
@@ -45,6 +54,138 @@ export function Workspace() {
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ── Live sign-detection wiring ──────────────────────────────
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [camError, setCamError] = useState<string | null>(null);
+  const [detected, setDetected] = useState<{ letter: string; conf: number }>({ letter: '', conf: 0 });
+  const [currentWord, setCurrentWord] = useState('');
+
+  // Accumulation state kept in refs so the per-frame callback stays stable.
+  const candidateRef = useRef('');
+  const candidateStableRef = useRef(0);
+  const lastCommittedRef = useRef('');
+  const wordBufferRef = useRef('');
+  const emptyFramesRef = useRef(0);
+
+  const detecting = cameraOn && mode === 'sign-to-text';
+
+  // Attach / release the webcam stream.
+  useEffect(() => {
+    if (!detecting) {
+      setCamError(null);
+      return;
+    }
+    let stream: MediaStream | null = null;
+    let cancelled = false;
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } })
+      .then((s) => {
+        if (cancelled) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        stream = s;
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          void videoRef.current.play();
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setCamError(err instanceof Error ? err.message : 'Camera access denied');
+      });
+    return () => {
+      cancelled = true;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [detecting]);
+
+  // Draw the hand bounding box + landmarks onto the overlay canvas.
+  const drawOverlay = useCallback((landmarks: Landmark[] | null) => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+    const w = video.videoWidth || canvas.width;
+    const h = video.videoHeight || canvas.height;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    if (!landmarks) return;
+
+    let minX = 1, minY = 1, maxX = 0, maxY = 0;
+    for (const p of landmarks) {
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+    }
+    const pad = 0.03;
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = Math.max(2, w * 0.004);
+    ctx.strokeRect((minX - pad) * w, (minY - pad) * h, (maxX - minX + pad * 2) * w, (maxY - minY + pad * 2) * h);
+
+    ctx.fillStyle = '#a78bfa';
+    const r = Math.max(2, w * 0.006);
+    for (const p of landmarks) {
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, []);
+
+  const commitWord = useCallback((word: string) => {
+    const clean = word.trim();
+    if (!clean) return;
+    setTranscript((prev) => [
+      ...prev,
+      { id: Date.now(), time: now(), text: clean, conf: Math.round(detected.conf * 100) || undefined, direction: 'outbound' },
+    ]);
+    addHistoryEntry({ text: clean, type: 'sign-to-text', conf: Math.round(detected.conf * 100) || undefined, languageCode: activeLanguage });
+  }, [addHistoryEntry, activeLanguage, detected.conf]);
+
+  const handlePrediction = useCallback((p: SignPrediction) => {
+    drawOverlay(p.landmarks);
+    setDetected((prev) =>
+      prev.letter === p.letter && Math.abs(prev.conf - p.confidence) < 0.04
+        ? prev
+        : { letter: p.letter, conf: p.confidence },
+    );
+
+    if (p.letter && p.confidence >= MIN_CONF) {
+      emptyFramesRef.current = 0;
+      if (p.letter === candidateRef.current) {
+        candidateStableRef.current += 1;
+      } else {
+        candidateRef.current = p.letter;
+        candidateStableRef.current = 1;
+      }
+      if (candidateStableRef.current === COMMIT_FRAMES && p.letter !== lastCommittedRef.current) {
+        lastCommittedRef.current = p.letter;
+        wordBufferRef.current += p.letter;
+        setCurrentWord(wordBufferRef.current);
+      }
+    } else {
+      emptyFramesRef.current += 1;
+      if (emptyFramesRef.current > 5) {
+        candidateRef.current = '';
+        candidateStableRef.current = 0;
+        lastCommittedRef.current = '';
+      }
+      if (emptyFramesRef.current === FLUSH_FRAMES && wordBufferRef.current) {
+        const word = wordBufferRef.current;
+        wordBufferRef.current = '';
+        setCurrentWord('');
+        commitWord(word);
+      }
+    }
+  }, [drawOverlay, commitWord]);
+
+  const { ready: detectorReady, error: detectorError } = useSignDetector({
+    videoRef,
+    enabled: detecting && live && !camError,
+    onPrediction: handlePrediction,
+  });
 
   useEffect(() => {
     setActiveLanguage(state.user.primaryLanguage);
@@ -208,21 +349,55 @@ export function Workspace() {
 
             {mode === 'sign-to-text' ? (
               cameraOn ? (
-                <>
-                  <AvatarPlaceholder variant="camera" className="absolute inset-0 w-full h-full border-none rounded-none object-cover opacity-90" />
-
-                  {/* Badges with background blurs that dynamically read across themes */}
-                  {live && (
-                    <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-[10px] font-mono tracking-wider font-bold text-text-primary uppercase">Live Studio</span>
-                    </div>
-                  )}
-
-                  <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
-                    <span className="text-[10px] font-mono font-bold tracking-wide text-emerald-600 dark:text-emerald-400">99.1% Confidence</span>
+                camError ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface-alt/40">
+                    <AvatarPlaceholder variant="profile" className="mb-4 opacity-30 scale-95" />
+                    <p className="text-sm font-bold text-text-primary tracking-tight">Camera Unavailable</p>
+                    <p className="text-xs text-text-secondary max-w-xs mt-1 mb-5">{camError}. Grant camera permission and try again.</p>
+                    <Button variant="primary" size="sm" className="rounded-full font-bold px-6 shadow-md transition-transform hover:scale-[1.02]" onClick={() => { setCameraOn(false); setTimeout(() => setCameraOn(true), 60); }}>
+                      Retry Camera
+                    </Button>
                   </div>
-                </>
+                ) : (
+                  <>
+                    {/* Mirrored video + landmark overlay (both flipped together to stay aligned) */}
+                    <div className="absolute inset-0 w-full h-full [transform:scaleX(-1)]">
+                      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+                      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                    </div>
+
+                    {/* Live status badge */}
+                    {live && (
+                      <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-mono tracking-wider font-bold text-text-primary uppercase">
+                          {detectorError ? 'Model error' : detectorReady ? 'Live Studio' : 'Loading model…'}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Real-time confidence badge */}
+                    <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
+                      <span className="text-[10px] font-mono font-bold tracking-wide text-emerald-600 dark:text-emerald-400">
+                        {detected.letter ? `${Math.round(detected.conf * 100)}% Confidence` : 'Awaiting hand…'}
+                      </span>
+                    </div>
+
+                    {/* Big detected letter (like the Python overlay) */}
+                    {detected.letter && (
+                      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-20 h-20 rounded-2xl bg-surface/80 backdrop-blur-md border border-primary/30 shadow-lg">
+                        <span className="text-5xl font-bold gradient-text-primary">{detected.letter}</span>
+                      </div>
+                    )}
+
+                    {/* Building word strip */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-surface/80 backdrop-blur-md border border-border/40 shadow-sm min-w-[8rem] text-center">
+                      <span className="text-sm font-mono font-bold tracking-[0.2em] text-text-primary">
+                        {currentWord || '—'}<span className="typewriter-cursor" />
+                      </span>
+                    </div>
+                  </>
+                )
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface-alt/40">
                   <AvatarPlaceholder variant="profile" className="mb-4 opacity-30 scale-95" />
