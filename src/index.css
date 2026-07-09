@@ -2,9 +2,9 @@
 
 @theme {
   /* ─── Typography ─── */
-  --font-general: 'Sora', 'General Sans', 'Inter', sans-serif;
+  --font-general: 'Sora', 'Inter', sans-serif;
   --font-inter: 'Inter', sans-serif;
-  --font-mono: 'Geist', 'IBM Plex Mono', monospace;
+  --font-mono: 'Geist Sans', 'IBM Plex Mono', monospace;
 
   /* ─── Colors (resolved via CSS vars below) ─── */
   --color-background: var(--color-background);
