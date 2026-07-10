@@ -22,7 +22,7 @@ export function Contact() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-10 pb-10">
+    <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-10 pb-10 page-enter">
       <div className="flex-1">
         <p className="text-[10px] font-mono-sb uppercase tracking-widest text-primary mb-3">Get in touch</p>
         <h1 className="text-2xl font-general font-semibold mb-4" style={{ fontFamily: 'var(--font-general)' }}>
@@ -87,7 +87,7 @@ export function Contact() {
                     required
                     rows={4}
                     placeholder="How can we help?"
-                    className="w-full rounded-lg border border-border bg-surface-alt p-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 resize-none transition-all"
+                    className="w-full rounded-xl border border-border bg-surface-alt p-3.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 resize-none transition-all"
                     aria-label="Message"
                   />
                 </div>

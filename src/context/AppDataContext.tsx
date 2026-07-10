@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { isLanguageAvailable } from '../constants/languages';
 
 export type SignLanguageCode = 'ISL' | 'ASL' | 'BSL';
 export type TranslationMode = 'sign-to-text' | 'text-to-sign';
@@ -36,15 +37,25 @@ interface AppDataState {
   history: HistoryEntry[];
   phrasebook: Record<string, string[]>;
   reportsCount: number;
+  /** Client-side session. Null = signed out. Replace with a real token/session
+   *  when a backend lands (see docs/REQUIREMENTS.md BE-1); this is the seam. */
+  session: { email: string } | null;
+  onboardingComplete: boolean;
+  consentAcknowledged: boolean;
 }
 
 interface AppDataContextValue {
   state: AppDataState;
-  setAuthUser: (fullName: string, email: string) => void;
+  isAuthenticated: boolean;
+  signIn: (fullName: string, email: string) => void;
+  completeOnboarding: () => void;
+  acknowledgeConsent: () => void;
+  exportData: () => string;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updatePreferences: (updates: Partial<AppPreferences>) => void;
   setPrimaryLanguage: (language: SignLanguageCode) => void;
   addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => void;
+  signOut: () => void;
   toggleSaved: (id: number) => void;
   removeHistoryEntry: (id: number) => void;
   clearHistory: () => void;
@@ -91,6 +102,9 @@ const DEFAULT_STATE: AppDataState = {
     Saved: [],
   },
   reportsCount: 0,
+  session: null,
+  onboardingComplete: false,
+  consentAcknowledged: false,
 };
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -108,6 +122,9 @@ function safeLoadState(): AppDataState {
       history: Array.isArray(parsed.history) ? parsed.history : [],
       phrasebook: { ...DEFAULT_STATE.phrasebook, ...(parsed.phrasebook ?? {}) },
       reportsCount: typeof parsed.reportsCount === 'number' ? parsed.reportsCount : 0,
+      session: parsed.session ?? null,
+      onboardingComplete: parsed.onboardingComplete === true,
+      consentAcknowledged: parsed.consentAcknowledged === true,
     };
   } catch {
     return DEFAULT_STATE;
@@ -161,7 +178,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const setAuthUser = (fullName: string, email: string) => {
+  const signIn = (fullName: string, email: string) => {
+    // Backend seam (BE-1): a real implementation would exchange credentials for
+    // a session token here. For now we establish a local session only.
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
     const firstName = parts[0] ?? 'New';
     const lastName = parts.slice(1).join(' ') || 'User';
@@ -173,7 +192,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         lastName,
         email,
       },
+      session: { email },
     });
+  };
+
+  const completeOnboarding = () => {
+    commit({ ...state, onboardingComplete: true });
+  };
+
+  const acknowledgeConsent = () => {
+    commit({ ...state, consentAcknowledged: true });
+  };
+
+  const exportData = () => {
+    // SEC-3: user can export all locally-held data.
+    return JSON.stringify(state, null, 2);
   };
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
@@ -234,6 +267,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addHistoryEntry = (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => {
+    // ML-5: never record a translation under a language that has no shipped
+    // model, so history/analytics can't accrue fake ISL/BSL data.
+    if (!isLanguageAvailable(entry.languageCode)) return;
+
     const newEntry: HistoryEntry = {
       ...entry,
       id: Date.now() + Math.floor(Math.random() * 1000),
@@ -245,6 +282,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ...state,
       history: [newEntry, ...state.history],
     });
+  };
+
+  const signOut = () => {
+    // FR-10: fully clear the session — reset in-memory state and wipe the
+    // persisted blob so a signed-out user is not still "logged in" on return.
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore storage errors (private mode, quota)
+    }
+    setState(DEFAULT_STATE);
   };
 
   const toggleSaved = (id: number) => {
@@ -370,11 +418,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const value: AppDataContextValue = {
     state,
-    setAuthUser,
+    isAuthenticated: state.session !== null,
+    signIn,
+    completeOnboarding,
+    acknowledgeConsent,
+    exportData,
     updateUserProfile,
     updatePreferences,
     setPrimaryLanguage,
     addHistoryEntry,
+    signOut,
     toggleSaved,
     removeHistoryEntry,
     clearHistory,

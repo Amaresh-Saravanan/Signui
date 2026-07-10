@@ -36,14 +36,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             type={inputType}
             className={cn(
-              'w-full h-10 rounded-lg border border-border bg-surface-alt px-4 text-sm',
-              'text-text-primary placeholder:text-text-secondary/60',
-              'transition-all duration-200 outline-none',
-              'focus:border-primary focus:ring-2 focus:ring-primary/15',
-              'hover:border-primary/40',
+              'w-full h-10 rounded-xl border border-border bg-surface-alt/75 px-4 text-sm',
+              'text-text-primary placeholder:text-text-secondary/50',
+              'transition-all duration-300 outline-none',
+              'focus:border-primary focus:ring-4 focus:ring-primary/10',
+              'hover:border-primary/30',
               icon === 'search' && 'pl-9',
               isPassword && 'pr-10',
-              error && 'border-error focus:border-error focus:ring-error/15',
+              error && 'border-error focus:border-error focus:ring-4 focus:ring-error/10',
               className
             )}
             {...props}
