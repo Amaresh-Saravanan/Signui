@@ -20,6 +20,10 @@ const appPreferencesSchema = z.object({
   localOnly: z.boolean(),
   reduceMotion: z.boolean(),
   highContrast: z.boolean(),
+  // Optional-with-default so existing persisted blobs (which predate these
+  // P2 toggles) still validate without a version bump. F-45 / F-47.
+  heatmap: z.boolean().default(false),
+  lowLight: z.boolean().default(false),
 });
 
 const historyEntrySchema = z.object({
@@ -62,6 +66,8 @@ export const DEFAULT_STATE: AppDataState = {
     localOnly: true,
     reduceMotion: false,
     highContrast: false,
+    heatmap: false,
+    lowLight: false,
   },
   history: [],
   phrasebook: {

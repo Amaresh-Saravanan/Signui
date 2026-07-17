@@ -151,6 +151,30 @@ export function Settings() {
           <div className="h-px bg-border/50" />
           <div className="flex items-center justify-between gap-6">
             <div>
+              <p className="text-sm font-semibold text-text-primary">Landmark confidence overlay</p>
+              <p className="text-xs text-text-secondary mt-0.5">Show which hand joints are well-tracked in the camera view.</p>
+            </div>
+            <Toggle
+              checked={state.preferences.heatmap}
+              onChange={() => updatePreferences({ heatmap: !state.preferences.heatmap })}
+              label=""
+            />
+          </div>
+          <div className="h-px bg-border/50" />
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <p className="text-sm font-semibold text-text-primary">Low-light boost</p>
+              <p className="text-xs text-text-secondary mt-0.5">Brighten the camera before detection in dim rooms.</p>
+            </div>
+            <Toggle
+              checked={state.preferences.lowLight}
+              onChange={() => updatePreferences({ lowLight: !state.preferences.lowLight })}
+              label=""
+            />
+          </div>
+          <div className="h-px bg-border/50" />
+          <div className="flex items-center justify-between gap-6">
+            <div>
               <p className="text-sm font-semibold text-text-primary">Automated Phrase Backup</p>
               <p className="text-xs text-text-secondary mt-0.5">Periodically exports your history and local preferences directly to internal cache storage.</p>
             </div>

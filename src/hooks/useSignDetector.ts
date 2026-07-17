@@ -29,6 +29,10 @@ interface UseSignDetectorOptions {
   smoothingWindow?: number;
   /** Detection rate cap (ML-7/PERF-4: 15-20fps budget). Default 18. */
   targetFps?: number;
+  /** Optional: return the image source to feed the model this frame (e.g. a
+   *  brightened canvas for low-light, F-47). Defaults to the <video>. Timing
+   *  gates still read the <video>. */
+  frameSource?: (video: HTMLVideoElement) => TexImageSource;
 }
 
 interface UseSignDetectorReturn {
@@ -63,6 +67,7 @@ export function useSignDetector({
   onPrediction,
   smoothingWindow = 6,
   targetFps = 18,
+  frameSource,
 }: UseSignDetectorOptions): UseSignDetectorReturn {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -206,10 +211,14 @@ export function useSignDetector({
         ) {
           lastVideoTimeRef.current = video.currentTime;
 
+          // What we feed the model (e.g. a low-light-brightened canvas, F-47);
+          // defaults to the raw <video>. Timing gates above still use <video>.
+          const src = frameSource ? (frameSource(video) ?? video) : video;
+
           if (recognizer) {
             let result: ReturnType<GestureRecognizer['recognizeForVideo']> | undefined;
             try {
-              result = recognizer.recognizeForVideo(video, performance.now());
+              result = recognizer.recognizeForVideo(src, performance.now());
             } catch {
               // Transient frame errors are non-fatal; skip this frame.
             }
@@ -224,7 +233,7 @@ export function useSignDetector({
           } else if (landmarker) {
             let result: ReturnType<HandLandmarker['detectForVideo']> | undefined;
             try {
-              result = landmarker.detectForVideo(video, performance.now());
+              result = landmarker.detectForVideo(src, performance.now());
             } catch {
               // Transient frame errors are non-fatal; skip this frame.
             }
@@ -269,7 +278,7 @@ export function useSignDetector({
       stopLoop();
       historyRef.current = [];
     };
-  }, [enabled, ready, videoRef, emit, targetFps]);
+  }, [enabled, ready, videoRef, emit, targetFps, frameSource]);
 
   return {
     ready,

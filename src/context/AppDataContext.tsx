@@ -35,6 +35,8 @@ interface AppPreferences {
   localOnly: boolean;
   reduceMotion: boolean;
   highContrast: boolean;
+  heatmap: boolean;
+  lowLight: boolean;
 }
 
 interface AppDataState {
@@ -60,7 +62,7 @@ interface AppDataContextValue {
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updatePreferences: (updates: Partial<AppPreferences>) => void;
   setPrimaryLanguage: (language: SignLanguageCode) => void;
-  addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => void;
+  addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => number | null;
   signOut: () => void;
   toggleSaved: (id: number) => void;
   removeHistoryEntry: (id: number) => void;
@@ -98,6 +100,8 @@ const DEFAULT_STATE: AppDataState = {
     localOnly: true,
     reduceMotion: false,
     highContrast: false,
+    heatmap: false,
+    lowLight: false,
   },
   history: [],
   phrasebook: {
@@ -330,7 +334,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const addHistoryEntry = (entry: Omit<HistoryEntry, 'id' | 'timestamp' | 'saved'> & { saved?: boolean }) => {
     // ML-5: never record a translation under a language that has no shipped
     // model, so history/analytics can't accrue fake ISL/BSL data.
-    if (!isLanguageAvailable(entry.languageCode)) return;
+    if (!isLanguageAvailable(entry.languageCode)) return null;
 
     const newEntry: HistoryEntry = {
       ...entry,
@@ -344,6 +348,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       history: [newEntry, ...state.history],
     });
     enqueueSync({ kind: 'addHistory', entry: newEntry });
+    return newEntry.id;
   };
 
   const signOut = () => {

@@ -5,6 +5,7 @@ import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, Message
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
+import { UndoButton } from '../components/workspace/UndoButton';
 import { cn } from '../utils/cn';
 import { wordVariants, overlayVariants } from '../lib/motion';
 import { cameraErrorCopy } from '../lib/cameraErrors';
@@ -74,7 +75,7 @@ function ConfidenceBadge({ letter, conf }: { letter: string; conf: number }) {
 }
 
 export function Workspace() {
-  const { state, addHistoryEntry, incrementReports, signOut } = useAppData();
+  const { state, addHistoryEntry, removeHistoryEntry, incrementReports, signOut } = useAppData();
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('sign-to-text');
   // ML-5: never start on a language that has no shipped model.
@@ -124,6 +125,10 @@ export function Workspace() {
   const wordBufferRef = useRef('');
   const wordMinConfRef = useRef(1);
   const emptyFramesRef = useRef(0);
+  // Stack of committed words (transcript id + matching history id) so Undo
+  // can pop the most recent one from both places at once.
+  const wordStackRef = useRef<{ transcriptId: number; historyId: number | null }[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
 
   const detecting = cameraOn && mode === 'sign-to-text';
 
@@ -197,13 +202,24 @@ export function Workspace() {
     const clean = word.trim();
     if (!clean) return;
     const confPct = Math.round(minConf * 100);
+    const transcriptId = Date.now();
     setTranscript((prev) => [
       ...prev,
-      { id: Date.now(), time: now(), text: clean, conf: confPct || undefined, lowConfidence: minConf < LOW_CONF, direction: 'outbound' },
+      { id: transcriptId, time: now(), text: clean, conf: confPct || undefined, lowConfidence: minConf < LOW_CONF, direction: 'outbound' },
     ]);
     setAnnouncement(clean);
-    addHistoryEntry({ text: clean, type: 'sign-to-text', conf: confPct || undefined, languageCode: activeLanguage });
+    const historyId = addHistoryEntry({ text: clean, type: 'sign-to-text', conf: confPct || undefined, languageCode: activeLanguage });
+    wordStackRef.current.push({ transcriptId, historyId });
+    setCanUndo(true);
   }, [addHistoryEntry, activeLanguage]);
+
+  const undoLastWord = useCallback(() => {
+    const last = wordStackRef.current.pop();
+    if (!last) return;
+    setTranscript((prev) => prev.filter((entry) => entry.id !== last.transcriptId));
+    if (last.historyId !== null) removeHistoryEntry(last.historyId);
+    setCanUndo(wordStackRef.current.length > 0);
+  }, [removeHistoryEntry]);
 
   const handlePrediction = useCallback((p: SignPrediction) => {
     drawOverlay(p.landmarks, p.confidence >= LOW_CONF);
@@ -287,16 +303,19 @@ export function Workspace() {
     if (mode !== 'sign-to-text') return;
     if (!inputText.trim()) return;
     const clean = inputText.trim();
+    const transcriptId = Date.now();
 
     setTranscript(prev => [
       ...prev,
-      { id: Date.now(), time: now(), text: clean, direction: 'inbound' },
+      { id: transcriptId, time: now(), text: clean, direction: 'inbound' },
     ]);
-    addHistoryEntry({
+    const historyId = addHistoryEntry({
       text: clean,
       type: 'sign-to-text',
       languageCode: activeLanguage,
     });
+    wordStackRef.current.push({ transcriptId, historyId });
+    setCanUndo(true);
 
     setInputText('');
   };
@@ -316,6 +335,8 @@ export function Workspace() {
     wordMinConfRef.current = 1;
     emptyFramesRef.current = 0;
     setCurrentWord('');
+    wordStackRef.current = [];
+    setCanUndo(false);
   };
 
   const isLive = detecting && live && !camError;
@@ -526,6 +547,8 @@ export function Workspace() {
               )}
             </AnimatePresence>
           </div>
+
+          <UndoButton onUndo={undoLastWord} disabled={!canUndo} />
 
           <Button
             variant="icon"
