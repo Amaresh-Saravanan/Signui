@@ -64,7 +64,7 @@ export function Settings() {
       {/* ── PROFILE SECTION ────────────────────────────────────── */}
       <Card padding="lg" className="bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md rounded-2xl">
         <h2 className="text-sm font-bold mb-5 flex items-center gap-2.5 text-text-primary">
-          <Globe size={16} className="text-[#00bfa5]" /> Account Profile
+          <Globe size={16} className="text-primary" /> Account Profile
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <Input label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -74,14 +74,14 @@ export function Settings() {
         <div className="flex items-center justify-between pt-2 border-t border-border/40">
           <p className={cn(
             "text-xs font-mono font-bold transition-all duration-300",
-            saved ? "text-[#00bfa5] opacity-100 translate-x-0" : "text-transparent opacity-0 -translate-x-2"
+            saved ? "text-primary opacity-100 translate-x-0" : "text-transparent opacity-0 -translate-x-2"
           )}>
             ✓ Changes updated successfully
           </p>
           <Button
             size="sm"
             onClick={handleSave}
-            className="h-9 px-4 text-xs font-bold bg-[#00bfa5]/[0.12] dark:bg-[#00bfa5]/[0.15] border border-[#00bfa5]/20 hover:bg-[#00bfa5]/[0.25] text-[#00bfa5] dark:text-[#3cd0bc] rounded-xl transition-all shadow-sm"
+            className="h-9 px-4 text-xs font-bold bg-primary/[0.12] dark:bg-primary/[0.15] border border-primary/20 hover:bg-primary/[0.25] text-primary dark:text-[#3cd0bc] rounded-xl transition-all shadow-sm"
           >
             Save changes
           </Button>
@@ -91,14 +91,14 @@ export function Settings() {
       {/* ── SYSTEM PARAMETERS ─────────────────────────────────── */}
       <Card padding="lg" className="bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md rounded-2xl">
         <h2 className="text-sm font-bold mb-4 flex items-center gap-2.5 text-text-primary">
-          <Shield size={16} className="text-[#00bfa5]" /> System Parameters
+          <Shield size={16} className="text-primary" /> System Parameters
         </h2>
         <div className="flex flex-col gap-2">
           <p className="text-[10px] font-mono uppercase tracking-wider text-text-secondary mb-1">Primary Sign Language</p>
           <select
             value={primaryLanguage}
             onChange={(e) => setPrimaryLanguageValue(e.target.value as 'ISL' | 'ASL' | 'BSL')}
-            className="w-full h-10 rounded-xl border border-border bg-black/[0.02] dark:bg-white/[0.02] text-sm px-4 text-text-primary outline-none focus:border-[#00bfa5]/40 transition-all cursor-pointer"
+            className="w-full h-10 rounded-xl border border-border bg-black/[0.02] dark:bg-white/[0.02] text-sm px-4 text-text-primary outline-none focus:border-primary/40 transition-all cursor-pointer"
             aria-label="Primary sign language"
           >
             {SUPPORTED_SIGN_LANGUAGES.map((language) => (
@@ -114,7 +114,7 @@ export function Settings() {
       {/* ── APP PREFERENCES & TOGGLES ──────────────────────────── */}
       <Card padding="lg" className="bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md rounded-2xl">
         <h2 className="text-sm font-bold mb-5 flex items-center gap-2.5 text-text-primary">
-          <Bell size={16} className="text-[#00bfa5]" /> App Preferences
+          <Bell size={16} className="text-primary" /> App Preferences
         </h2>
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-6">

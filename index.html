@@ -6,10 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SignBridge</title>
     <!-- Fonts are self-hosted via @fontsource imports in src/main.tsx (SEC-5) -->
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
-    >
+    <!-- CSP is set via HTTP header in vercel.json (stronger: supports frame-ancestors) -->
   </head>
   <body>
     <div id="root"></div>

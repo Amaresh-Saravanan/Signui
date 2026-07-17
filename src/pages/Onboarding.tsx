@@ -56,7 +56,7 @@ export function Onboarding() {
           {SLIDES.map((_, i) => (
             <div
               key={i}
-              className={`h-1 rounded-full transition-all duration-300 ${i === slide ? 'w-8 bg-[#00bfa5]' : 'w-2 bg-border/60'
+              className={`h-1 rounded-full transition-all duration-300 ${i === slide ? 'w-8 bg-primary' : 'w-2 bg-border/60'
                 }`}
             />
           ))}
@@ -75,7 +75,7 @@ export function Onboarding() {
             <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-white/[0.04] to-transparent border border-black/[0.05] dark:border-white/[0.05] shadow-sm">
               <SignStroke
                 variant={strokeVariant}
-                color="#00bfa5"
+               
                 loop={strokeVariant === 'loader'}
                 width={strokeVariant === 'divider' ? 160 : 90}
                 height={strokeVariant === 'divider' ? 24 : 70}
@@ -106,12 +106,12 @@ export function Onboarding() {
                       type="button"
                       onClick={() => setSelectedDialect(dialect.id)}
                       className={`group w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all duration-200 select-none cursor-pointer backdrop-blur-md ${isSelected
-                          ? 'bg-[#00bfa5]/[0.08] border-[#00bfa5] shadow-[0_0_15px_rgba(0,191,165,0.1)]'
-                          : 'bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.08] dark:border-white/[0.06] hover:border-[#00bfa5]/40 hover:bg-white/[0.05] dark:hover:bg-white/[0.03]'
+                          ? 'bg-primary/[0.08] border-primary shadow-[0_0_15px_var(--color-primary-soft)]'
+                          : 'bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.08] dark:border-white/[0.06] hover:border-primary/40 hover:bg-white/[0.05] dark:hover:bg-white/[0.03]'
                         }`}
                     >
                       <div className="flex flex-col gap-0.5">
-                        <span className={`text-sm font-bold transition-colors ${isSelected ? 'text-[#00bfa5]' : 'text-text-primary'}`}>
+                        <span className={`text-sm font-bold transition-colors ${isSelected ? 'text-primary' : 'text-text-primary'}`}>
                           {dialect.name}
                         </span>
                         <span className="text-xs text-text-secondary font-medium">
@@ -121,8 +121,8 @@ export function Onboarding() {
 
                       {/* Check Indicator */}
                       <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all border ${isSelected
-                          ? 'bg-[#00bfa5] border-[#00bfa5] text-white scale-110'
-                          : 'border-border group-hover:border-[#00bfa5]/40'
+                          ? 'bg-primary border-primary text-white scale-110'
+                          : 'border-border group-hover:border-primary/40'
                         }`}>
                         {isSelected && <Check size={12} strokeWidth={3} />}
                       </div>
@@ -147,7 +147,7 @@ export function Onboarding() {
           )}
           <Button
             onClick={() => isLast ? navigate('/permissions') : setSlide(s => s + 1)}
-            className={`h-11 rounded-xl text-sm font-bold bg-[#00bfa5] hover:bg-[#00a892] text-white transition-all shadow-md active:scale-[0.98] ${slide === 0 ? 'w-full' : 'flex-1'
+            className={`h-11 rounded-xl text-sm font-bold bg-primary hover:bg-primary-hover text-white transition-all shadow-md active:scale-[0.98] ${slide === 0 ? 'w-full' : 'flex-1'
               }`}
           >
             {isLast ? 'Set up permissions' : 'Next'}

@@ -57,7 +57,7 @@ export function Profile() {
             <span className="text-xl font-general font-bold text-text-primary tracking-tight">
               {initial}
             </span>
-            <div className="absolute inset-0 bg-gradient-to-tr from-[#00bfa5]/[0.03] to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/[0.03] to-transparent pointer-events-none" />
           </div>
 
           <h2 className="text-base font-bold text-text-primary mb-0.5">{fullName || 'New User'}</h2>
@@ -83,7 +83,7 @@ export function Profile() {
             <div className="grid grid-cols-2 gap-4">
               {usageStats.map(s => (
                 <div key={s.label} className="p-4 rounded-xl bg-black/[0.02] dark:bg-white/[0.01] border border-black/[0.04] dark:border-white/[0.04]">
-                  <s.icon size={16} className="text-[#00bfa5] mb-2" />
+                  <s.icon size={16} className="text-primary mb-2" />
                   <p className="text-[10px] font-mono uppercase tracking-wider text-text-secondary mb-1">{s.label}</p>
                   <p className="text-2xl font-general font-bold text-text-primary" style={{ fontFamily: 'var(--font-general)' }}>{s.value}</p>
                 </div>
@@ -95,7 +95,7 @@ export function Profile() {
           <Card padding="lg" className="bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md rounded-2xl">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-text-primary">Consistency Matrix</h3>
-              <p className="text-[11px] font-mono text-[#00bfa5] font-bold">{stats.currentStreakDays || 0} Day Streak Active</p>
+              <p className="text-[11px] font-mono text-primary font-bold">{stats.currentStreakDays || 0} Day Streak Active</p>
             </div>
             <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-black/[0.01] dark:bg-white/[0.01] border border-black/[0.02] dark:border-white/[0.02]">
               {Array.from({ length: 5 }, (_, idx) => {
@@ -104,7 +104,7 @@ export function Profile() {
                   <div key={idx} className="flex flex-col items-center gap-1.5 flex-1">
                     <div className={cn(
                       "w-full h-2 rounded-sm transition-all duration-300",
-                      isActive ? "bg-[#00bfa5]/30 dark:bg-[#00bfa5]/40" : "bg-black/[0.05] dark:bg-white/[0.05]"
+                      isActive ? "bg-primary/30 dark:bg-primary/40" : "bg-black/[0.05] dark:bg-white/[0.05]"
                     )} />
                     <span className="text-[9px] font-mono uppercase tracking-wider text-text-secondary">P-{5 - idx}</span>
                   </div>
@@ -128,13 +128,13 @@ export function Profile() {
                     className={cn(
                       "aspect-square rounded-xl flex flex-col items-center justify-center border transition-all duration-300 relative group",
                       isEarned
-                        ? "bg-[#00bfa5]/[0.06] border-[#00bfa5]/30 text-[#00bfa5]"
+                        ? "bg-primary/[0.06] border-primary/30 text-primary"
                         : "bg-black/[0.01] dark:bg-white/[0.01] border-black/[0.05] dark:border-white/[0.05] text-text-secondary/40 opacity-40"
                     )}
                   >
                     <Award size={18} className={cn("transition-transform duration-200", isEarned && "group-hover:scale-110")} />
                     {isEarned && (
-                      <CheckCircle2 size={10} className="absolute top-1 right-1 text-[#00bfa5]/80 dynamic-icon" />
+                      <CheckCircle2 size={10} className="absolute top-1 right-1 text-primary/80 dynamic-icon" />
                     )}
                   </div>
                 );

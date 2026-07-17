@@ -54,10 +54,10 @@ export function Dashboard() {
         {/* Modern Interactive Hero Tile */}
         <motion.div variants={cardVariants} className="lg:col-span-8">
           <Card className="relative overflow-hidden p-8 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-xl min-h-[260px] flex flex-col justify-between group shadow-sm rounded-2xl">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#00bfa5]/[0.03] to-transparent rounded-full blur-[90px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/[0.03] to-transparent rounded-full blur-[90px] pointer-events-none" />
 
             <div className="space-y-3 max-w-xl">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold tracking-wider text-[#00bfa5] uppercase bg-[#00bfa5]/[0.08] border border-[#00bfa5]/10 rounded-full">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold tracking-wider text-primary uppercase bg-primary/[0.08] border border-primary/10 rounded-full">
                 <Sparkles size={11} />
                 <span>Live Studio Interpreter</span>
               </div>
@@ -69,7 +69,7 @@ export function Dashboard() {
 
             <div className="pt-6">
               <Link to="/workspace">
-                <Button size="lg" className="bg-white/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] hover:bg-[#00bfa5]/[0.08] hover:border-[#00bfa5]/30 text-text-primary hover:text-[#00bfa5] font-bold px-7 py-3 rounded-full transition-all duration-200">
+                <Button size="lg" className="bg-white/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] hover:bg-primary/[0.08] hover:border-primary/30 text-text-primary hover:text-primary font-bold px-7 py-3 rounded-full transition-all duration-200">
                   Launch Studio
                 </Button>
               </Link>
@@ -80,34 +80,34 @@ export function Dashboard() {
         {/* Dynamic Navigation Cards Column */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           <motion.div variants={cardVariants} className="flex-1">
-            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-[#00bfa5]/20 transition-all rounded-2xl shadow-sm">
+            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#00bfa5]/[0.06] border border-[#00bfa5]/10 flex items-center justify-center text-[#00bfa5]">
+                <div className="w-12 h-12 rounded-2xl bg-primary/[0.06] border border-primary/10 flex items-center justify-center text-primary">
                   <BookOpen size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-text-primary transition-colors group-hover:text-[#00bfa5]">Phrasebook</h3>
+                  <h3 className="text-sm font-bold text-text-primary transition-colors group-hover:text-primary">Phrasebook</h3>
                   <p className="text-xs text-text-secondary font-mono mt-0.5">{totalSavedPhrases} Saved Phrases</p>
                 </div>
               </div>
-              <Link to="/phrasebook" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-[#00bfa5] group-hover:border-[#00bfa5]/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
+              <Link to="/phrasebook" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
                 <ArrowRight size={14} />
               </Link>
             </Card>
           </motion.div>
 
           <motion.div variants={cardVariants} className="flex-1">
-            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-[#00bfa5]/20 transition-all rounded-2xl shadow-sm">
+            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#00bfa5]/[0.06] border border-[#00bfa5]/10 flex items-center justify-center text-[#00bfa5]">
+                <div className="w-12 h-12 rounded-2xl bg-primary/[0.06] border border-primary/10 flex items-center justify-center text-primary">
                   <Users size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-text-primary transition-colors group-hover:text-[#00bfa5]">Collaboration</h3>
+                  <h3 className="text-sm font-bold text-text-primary transition-colors group-hover:text-primary">Collaboration</h3>
                   <p className="text-xs text-text-secondary font-mono mt-0.5">{activeRoomsCount} Active Rooms</p>
                 </div>
               </div>
-              <Link to="/workspace" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-[#00bfa5] group-hover:border-[#00bfa5]/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
+              <Link to="/workspace" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
                 <ArrowRight size={14} />
               </Link>
             </Card>
@@ -128,7 +128,7 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold tracking-wide text-text-primary flex items-center gap-1.5">
-                  <TrendingUp size={15} className="text-[#00bfa5]" />
+                  <TrendingUp size={15} className="text-primary" />
                   Usage Analytics
                 </h3>
                 <p className="text-xs text-text-secondary mt-0.5">Active translation sequence counts over recent cycles</p>
@@ -152,8 +152,8 @@ export function Dashboard() {
                       className={cn(
                         "w-full rounded-t-lg transition-all duration-200 border border-transparent",
                         isPeakColumn
-                          ? 'bg-[#00bfa5]/20 border-[#00bfa5]/30 shadow-sm shadow-[#00bfa5]/5 scale-x-[1.01]'
-                          : 'bg-black/[0.04] dark:bg-white/[0.04] group-hover/bar:bg-[#00bfa5]/10 group-hover/bar:border-[#00bfa5]/10'
+                          ? 'bg-primary/20 border-primary/30 shadow-sm shadow-primary/5 scale-x-[1.01]'
+                          : 'bg-black/[0.04] dark:bg-white/[0.04] group-hover/bar:bg-primary/10 group-hover/bar:border-primary/10'
                       )}
                     />
                   </div>

@@ -32,8 +32,8 @@ function NavItem({ icon: Icon, label, path, collapsed }: { icon: any; label: str
         cn(
           'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
           isActive
-            ? 'text-[#00bfa5] font-semibold bg-[#00bfa5]/[0.08] dark:bg-[#00bfa5]/[0.1]'
-            : 'text-text-secondary hover:text-[#00bfa5] hover:bg-white/[0.04] font-medium',
+            ? 'text-primary font-semibold bg-primary/[0.08] dark:bg-primary/[0.1]'
+            : 'text-text-secondary hover:text-primary hover:bg-white/[0.04] font-medium',
           collapsed ? 'justify-center px-0 w-10 mx-auto' : ''
         )
       }
@@ -51,7 +51,7 @@ function NavItem({ icon: Icon, label, path, collapsed }: { icon: any; label: str
               className="absolute bottom-0.5 left-3 right-3 pointer-events-none"
               transition={{ type: 'spring', stiffness: 400, damping: 35 }}
             >
-              <SignStroke variant="nav-accent" color="#00bfa5" width={52} height={8} />
+              <SignStroke variant="nav-accent" width={52} height={8} />
             </motion.div>
           )}
         </>
@@ -90,7 +90,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           <button
             onClick={onToggleCollapse}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="w-10 h-10 rounded-xl flex items-center justify-center border border-border bg-surface-alt/50 text-text-secondary hover:text-[#00bfa5] hover:bg-white/[0.04] hover:border-[#00bfa5]/30 transition-all duration-200"
+            className="w-10 h-10 rounded-xl flex items-center justify-center border border-border bg-surface-alt/50 text-text-secondary hover:text-primary hover:bg-white/[0.04] hover:border-primary/30 transition-all duration-200"
           >
             {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
@@ -112,7 +112,7 @@ export function MobileNav() {
           className={({ isActive }) =>
             cn(
               'flex flex-col items-center gap-1 px-3 py-2 rounded-lg text-xs transition-colors',
-              isActive ? 'text-[#00bfa5]' : 'text-text-secondary hover:text-[#00bfa5]'
+              isActive ? 'text-primary' : 'text-text-secondary hover:text-primary'
             )
           }
         >

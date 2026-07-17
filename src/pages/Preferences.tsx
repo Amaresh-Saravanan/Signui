@@ -51,21 +51,21 @@ export function Preferences() {
                     className={cn(
                       'flex items-start gap-4 p-4 rounded-xl border text-left transition-all duration-200 backdrop-blur-md cursor-pointer select-none',
                       isSelected
-                        ? 'bg-[#00bfa5]/[0.08] border-[#00bfa5] shadow-[0_0_15px_rgba(0,191,165,0.05)]'
-                        : 'bg-white/[0.01] border-black/[0.08] dark:border-white/[0.06] hover:border-[#00bfa5]/40 hover:bg-white/[0.04]'
+                        ? 'bg-primary/[0.08] border-primary shadow-[0_0_15px_var(--color-primary-soft)]'
+                        : 'bg-white/[0.01] border-black/[0.08] dark:border-white/[0.06] hover:border-primary/40 hover:bg-white/[0.04]'
                     )}
                   >
                     <div className={cn(
                       'w-4 h-4 rounded-full border shrink-0 mt-0.5 flex items-center justify-center transition-all',
-                      isSelected ? 'border-[#00bfa5]' : 'border-border'
+                      isSelected ? 'border-primary' : 'border-border'
                     )}>
                       {isSelected && (
-                        <div className="w-2 h-2 rounded-full bg-[#00bfa5]" />
+                        <div className="w-2 h-2 rounded-full bg-primary" />
                       )}
                     </div>
 
                     <div>
-                      <p className={cn('text-sm font-bold transition-colors', isSelected ? 'text-[#00bfa5]' : 'text-text-primary')}>
+                      <p className={cn('text-sm font-bold transition-colors', isSelected ? 'text-primary' : 'text-text-primary')}>
                         {r.label}
                       </p>
                       <p className="text-xs text-text-secondary mt-0.5 leading-normal">{r.sub}</p>
@@ -88,7 +88,7 @@ export function Preferences() {
           </Button>
           <Button
             onClick={handleComplete}
-            className="flex-2 h-11 rounded-xl text-sm font-bold bg-[#00bfa5] hover:bg-[#00a892] text-white transition-all shadow-md active:scale-[0.98]"
+            className="flex-2 h-11 rounded-xl text-sm font-bold bg-primary hover:bg-primary-hover text-white transition-all shadow-md active:scale-[0.98]"
           >
             Complete Setup
           </Button>

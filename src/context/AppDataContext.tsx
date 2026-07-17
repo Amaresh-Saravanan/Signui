@@ -1,6 +1,12 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isLanguageAvailable } from '../constants/languages';
+import { loadState, createDebouncedWriter } from '../lib/persistence';
+import { initTelemetry } from '../lib/telemetry';
+import { createApiClient } from '../lib/apiClient';
+import { createSyncQueue } from '../lib/sync';
+import type { SyncOp } from '../lib/sync';
+import { getClerkToken, clerkSignOut, hasClerk } from '../lib/clerk';
 
 export type SignLanguageCode = 'ISL' | 'ASL' | 'BSL';
 export type TranslationMode = 'sign-to-text' | 'text-to-sign';
@@ -109,27 +115,9 @@ const DEFAULT_STATE: AppDataState = {
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
 
-function safeLoadState(): AppDataState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE;
-    const parsed = JSON.parse(raw) as Partial<AppDataState>;
-    return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      user: { ...DEFAULT_STATE.user, ...(parsed.user ?? {}) },
-      preferences: { ...DEFAULT_STATE.preferences, ...(parsed.preferences ?? {}) },
-      history: Array.isArray(parsed.history) ? parsed.history : [],
-      phrasebook: { ...DEFAULT_STATE.phrasebook, ...(parsed.phrasebook ?? {}) },
-      reportsCount: typeof parsed.reportsCount === 'number' ? parsed.reportsCount : 0,
-      session: parsed.session ?? null,
-      onboardingComplete: parsed.onboardingComplete === true,
-      consentAcknowledged: parsed.consentAcknowledged === true,
-    };
-  } catch {
-    return DEFAULT_STATE;
-  }
-}
+// Persistence (load + validate + migrate) now lives in ../lib/persistence
+// (loadState). The old inline safeLoadState was replaced by that hardened,
+// zod-validated, versioned loader (M5 task 5.4).
 
 function startOfDay(ts: number) {
   const d = new Date(ts);
@@ -171,12 +159,83 @@ function calculateStreak(days: number[]): { current: number; best: number } {
 }
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppDataState>(() => safeLoadState());
+  const [state, setState] = useState<AppDataState>(() => loadState());
+
+  // Debounced localStorage writer (M5 task 5.5) — coalesces rapid mutations
+  // into one setItem ~250ms after the last change instead of writing inline
+  // on every keystroke.
+  const writerRef = useRef(createDebouncedWriter());
 
   const commit = (next: AppDataState) => {
     setState(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    writerRef.current.write(next);
   };
+
+  // Functional revert used by sync rollback — reads the latest state, applies
+  // the reverting change, and persists it (avoids stale-closure bugs).
+  const applyRevert = (updater: (prev: AppDataState) => AppDataState) => {
+    setState((prev) => {
+      const next = updater(prev);
+      writerRef.current.write(next);
+      return next;
+    });
+  };
+
+  // --- Cross-device sync (M5 task 5.6) --------------------------------------
+  // Dormant until Clerk is configured (hasClerk): without a session token every
+  // request would 401 and wrongly roll back local edits, so we simply don't
+  // enqueue. With Clerk + a deployed /api, ops replay optimistically and only a
+  // definitive server rejection rolls the local change back.
+  const deletedSnapshots = useRef(new Map<number, HistoryEntry>());
+  const profileSnapshots = useRef<UserProfile[]>([]);
+
+  const syncRef = useRef(
+    createSyncQueue({
+      apiClient: createApiClient(getClerkToken),
+      onRollback: (op: SyncOp) => {
+        if (op.kind === 'addHistory') {
+          applyRevert((prev) => ({
+            ...prev,
+            history: prev.history.filter((h) => h.id !== op.entry.id),
+          }));
+        } else if (op.kind === 'deleteHistory') {
+          const snap = deletedSnapshots.current.get(op.id);
+          deletedSnapshots.current.delete(op.id);
+          if (snap) {
+            applyRevert((prev) => ({ ...prev, history: [snap, ...prev.history] }));
+          }
+        } else if (op.kind === 'updateProfile') {
+          const prevProfile = profileSnapshots.current.shift();
+          if (prevProfile) {
+            applyRevert((prev) => ({ ...prev, user: prevProfile }));
+          }
+        }
+      },
+    }),
+  );
+
+  const enqueueSync = (op: SyncOp) => {
+    if (hasClerk) syncRef.current.enqueue(op);
+  };
+
+  // --- Telemetry (M5 task 5.10) ---------------------------------------------
+  // Self-gates to a no-op unless a DSN is set AND consent given AND localOnly
+  // off. Re-runs when those flags change.
+  useEffect(() => {
+    initTelemetry({
+      dsn: import.meta.env.VITE_SENTRY_DSN,
+      consentAcknowledged: state.consentAcknowledged,
+      localOnly: state.preferences.localOnly,
+    });
+  }, [state.consentAcknowledged, state.preferences.localOnly]);
+
+  // Flush any pending debounced write before the tab unloads so the last
+  // mutation isn't lost.
+  useEffect(() => {
+    const flush = () => writerRef.current.flush();
+    window.addEventListener('beforeunload', flush);
+    return () => window.removeEventListener('beforeunload', flush);
+  }, []);
 
   const signIn = (fullName: string, email: string) => {
     // Backend seam (BE-1): a real implementation would exchange credentials for
@@ -210,6 +269,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
+    if (hasClerk) profileSnapshots.current.push(state.user);
     commit({
       ...state,
       user: {
@@ -217,6 +277,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         ...updates,
       },
     });
+    enqueueSync({ kind: 'updateProfile', patch: updates });
   };
 
   const updatePreferences = (updates: Partial<AppPreferences>) => {
@@ -282,11 +343,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       ...state,
       history: [newEntry, ...state.history],
     });
+    enqueueSync({ kind: 'addHistory', entry: newEntry });
   };
 
   const signOut = () => {
     // FR-10: fully clear the session — reset in-memory state and wipe the
     // persisted blob so a signed-out user is not still "logged in" on return.
+    // Cancel any pending debounced write first so it can't re-persist after
+    // the wipe. End the Clerk session too when configured (no-op otherwise).
+    writerRef.current.cancel();
+    void clerkSignOut();
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -330,6 +396,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Snapshot for sync rollback (re-insert if the server rejects the delete).
+    if (hasClerk) deletedSnapshots.current.set(id, target);
+
     const hasOtherSaved = nextHistory.some((entry) => entry.saved && entry.text === target.text);
     const nextSavedCategory = hasOtherSaved
       ? state.phrasebook.Saved ?? []
@@ -343,6 +412,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         Saved: nextSavedCategory,
       },
     });
+    enqueueSync({ kind: 'deleteHistory', id });
   };
 
   const clearHistory = () => {

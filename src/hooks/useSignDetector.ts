@@ -27,6 +27,8 @@ interface UseSignDetectorOptions {
   onPrediction?: (p: SignPrediction) => void;
   /** Frames to hold a letter before it is considered stable. */
   smoothingWindow?: number;
+  /** Detection rate cap (ML-7/PERF-4: 15-20fps budget). Default 18. */
+  targetFps?: number;
 }
 
 interface UseSignDetectorReturn {
@@ -38,11 +40,17 @@ interface UseSignDetectorReturn {
 const WASM_PATH = '/wasm';
 const MODEL_PATH = '/models/hand_landmarker.task';
 
+/** Pure gate so the fps cap is unit-testable without rAF/MediaPipe. */
+export function frameIsDue(now: number, lastTick: number, intervalMs: number): boolean {
+  return now - lastTick >= intervalMs;
+}
+
 export function useSignDetector({
   videoRef,
   enabled,
   onPrediction,
   smoothingWindow = 6,
+  targetFps = 18,
 }: UseSignDetectorOptions): UseSignDetectorReturn {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +63,7 @@ export function useSignDetector({
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
+  const lastTickRef = useRef<number>(0);
   const historyRef = useRef<string[]>([]);
   const onPredictionRef = useRef(onPrediction);
 
@@ -117,61 +126,92 @@ export function useSignDetector({
     [smoothingWindow],
   );
 
-  // Detection loop.
+  // Detection loop. Capped to targetFps (ML-7/PERF-4) and fully suspended
+  // while the tab is hidden rather than just skipping work, so the browser
+  // stops scheduling rAF callbacks for this loop entirely.
   useEffect(() => {
     if (!enabled || !ready) return;
 
-    const tick = () => {
-      const video = videoRef.current;
-      const landmarker = landmarkerRef.current;
+    const intervalMs = 1000 / targetFps;
+    let stopped = false;
 
-      if (
-        video &&
-        landmarker &&
-        video.readyState >= 2 &&
-        video.currentTime !== lastVideoTimeRef.current
-      ) {
-        lastVideoTimeRef.current = video.currentTime;
-        let result: HandLandmarkerResult | undefined;
-        try {
-          result = landmarker.detectForVideo(video, performance.now());
-        } catch {
-          // Transient frame errors are non-fatal; skip this frame.
-        }
+    const tick = (now: number) => {
+      if (stopped) return;
 
-        if (result && result.landmarks.length > 0) {
-          const lm = result.landmarks[0] as Landmark[];
-          const raw = classifyASL(lm);
-          const stableLetter = smooth(raw.letter);
-          const next: SignPrediction = {
-            letter: stableLetter,
-            confidence: raw.confidence,
-            landmarks: lm,
-          };
-          setPrediction(next);
-          onPredictionRef.current?.(next);
-        } else {
-          historyRef.current = [];
-          const empty: SignPrediction = {
-            letter: '',
-            confidence: 0,
-            landmarks: null,
-          };
-          setPrediction(empty);
-          onPredictionRef.current?.(empty);
+      if (frameIsDue(now, lastTickRef.current, intervalMs)) {
+        lastTickRef.current = now;
+        const video = videoRef.current;
+        const landmarker = landmarkerRef.current;
+
+        if (
+          video &&
+          landmarker &&
+          video.readyState >= 2 &&
+          video.currentTime !== lastVideoTimeRef.current
+        ) {
+          lastVideoTimeRef.current = video.currentTime;
+          let result: HandLandmarkerResult | undefined;
+          try {
+            result = landmarker.detectForVideo(video, performance.now());
+          } catch {
+            // Transient frame errors are non-fatal; skip this frame.
+          }
+
+          if (result && result.landmarks.length > 0) {
+            const lm = result.landmarks[0] as Landmark[];
+            const raw = classifyASL(lm);
+            const stableLetter = smooth(raw.letter);
+            const next: SignPrediction = {
+              letter: stableLetter,
+              confidence: raw.confidence,
+              landmarks: lm,
+            };
+            setPrediction(next);
+            onPredictionRef.current?.(next);
+          } else {
+            historyRef.current = [];
+            const empty: SignPrediction = {
+              letter: '',
+              confidence: 0,
+              landmarks: null,
+            };
+            setPrediction(empty);
+            onPredictionRef.current?.(empty);
+          }
         }
       }
 
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    const stopLoop = () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+
+    const startLoop = () => {
+      if (rafRef.current === null && !stopped) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) stopLoop();
+      else startLoop();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    if (!document.hidden) startLoop();
+
     return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+      stopped = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      stopLoop();
       historyRef.current = [];
     };
-  }, [enabled, ready, videoRef, smooth]);
+  }, [enabled, ready, videoRef, smooth, targetFps]);
 
   return { ready, error, prediction };
 }

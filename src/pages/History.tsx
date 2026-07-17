@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bookmark, Trash2, Filter, Pin, Clock, ShieldCheck, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bookmark, Trash2, Filter, Pin, Clock, ShieldCheck, Globe, History as HistoryIcon } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
-import { SignStroke } from '../components/SignStroke';
+import { EmptyState } from '../components/EmptyState';
 import { cn } from '../utils/cn';
 import { formatHistoryDate, formatHistoryTime, useAppData } from '../context/AppDataContext';
 
@@ -22,6 +23,7 @@ const FILTERS = ['All', 'Today', 'Week', 'Sign → Text', 'Text → Sign', 'Save
 
 export function History() {
   const { state, toggleSaved, removeHistoryEntry } = useAppData();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -62,7 +64,7 @@ export function History() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-black/[0.06] dark:border-white/[0.05] pb-5">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight text-text-primary font-sans">
-            Translation <span className="bg-gradient-to-r from-primary via-indigo-500 to-teal-400 bg-clip-text text-transparent">History</span>
+            Translation <span className="text-primary">History</span>
           </h1>
           <p className="text-xs font-medium tracking-wide text-text-secondary mt-1">
             Review and manage your past AI-assisted sign language sessions.
@@ -93,8 +95,8 @@ export function History() {
             className={cn(
               'h-8 px-4 rounded-full text-xs font-semibold tracking-wide transition-all border duration-200',
               activeFilter === f
-                ? 'bg-[#00bfa5]/10 text-[#00bfa5] border-[#00bfa5]/30 shadow-sm shadow-[#00bfa5]/5'
-                : 'border-black/[0.06] dark:border-white/[0.05] bg-white/[0.02] dark:bg-white/[0.01] text-text-secondary hover:border-[#00bfa5]/20 hover:text-text-primary'
+                ? 'bg-primary/10 text-primary border-primary/30 shadow-sm shadow-primary/5'
+                : 'border-black/[0.06] dark:border-white/[0.05] bg-white/[0.02] dark:bg-white/[0.01] text-text-secondary hover:border-primary/20 hover:text-text-primary'
             )}
           >
             {f}
@@ -105,14 +107,14 @@ export function History() {
       {/* ── PINNED SESSIONS ────────────────── */}
       {pinnedEntries.length > 0 && !search && (
         <div className="space-y-3.5">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#00bfa5] flex items-center gap-1.5">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
             <Pin size={11} className="rotate-45" />
             <span>Pinned Sessions</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {pinnedEntries.map((entry) => (
               <Card key={`pinned-${entry.id}`} className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] relative overflow-hidden group rounded-2xl shadow-sm backdrop-blur-xl">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-[#00bfa5]/[0.02] rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/[0.02] rounded-full blur-2xl pointer-events-none" />
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
                     <h3 className="text-sm font-bold text-text-primary truncate max-w-[180px]">
@@ -122,7 +124,7 @@ export function History() {
                   </div>
                   <button
                     onClick={() => toggleSaved(entry.id)}
-                    className="text-[#00bfa5] hover:scale-105 transition-transform"
+                    className="text-primary hover:scale-105 transition-transform"
                     aria-label="Unpin entry"
                   >
                     <Bookmark size={14} fill="currentColor" />
@@ -146,15 +148,26 @@ export function History() {
           Recent Sessions
         </div>
 
-        {Object.keys(grouped).length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-white/[0.01] dark:bg-white/[0.005] border border-dashed border-black/[0.06] dark:border-white/[0.05] rounded-2xl backdrop-blur-sm">
-            <SignStroke variant="empty-state" color="var(--color-border)" width={80} height={70} className="mb-4 opacity-20" />
-            <p className="font-bold text-text-secondary text-sm mb-0.5">
-              {search ? 'No sessions found' : 'No history tracks mapped'}
+        {entries.length === 0 ? (
+          <EmptyState
+            icon={HistoryIcon}
+            title="Your conversations will live here"
+            body="Every session you translate in the Workspace is saved on this device, searchable by date and content."
+            cta={<Button onClick={() => navigate('/workspace')}>Start translating</Button>}
+          />
+        ) : Object.keys(grouped).length === 0 ? (
+          // Lighter inline state: history exists, the current search/filter just has no hits.
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <p className="text-sm text-text-secondary">
+              {search ? `No matches for "${search}"` : `No sessions match the "${activeFilter}" filter`}
             </p>
-            <p className="text-xs text-text-secondary max-w-xs leading-relaxed">
-              {search ? `We couldn't find any matches for "${search}"` : 'Content will stream into synchronization modules after translation cycles.'}
-            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearch(''); setActiveFilter('All'); }}
+            >
+              Clear search
+            </Button>
           </div>
         ) : (
           Object.entries(grouped).map(([date, items]) => (
@@ -177,7 +190,7 @@ export function History() {
                       exit={{ opacity: 0, x: -15 }}
                       transition={{ delay: i * 0.02, ease: "easeOut" }}
                     >
-                      <Card padding="none" className="group overflow-hidden bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] hover:border-[#00bfa5]/20 backdrop-blur-xl transition-all duration-200 rounded-2xl shadow-sm">
+                      <Card padding="none" className="group overflow-hidden bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] hover:border-primary/20 backdrop-blur-xl transition-all duration-200 rounded-2xl shadow-sm">
                         <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 
                           {/* Meta Details & Output Stream */}
@@ -186,7 +199,7 @@ export function History() {
                               <span className="text-xs font-bold text-text-primary flex items-center gap-1.5">
                                 {entry.type === 'sign-to-text' ? (
                                   <>
-                                    <Globe size={13} className="text-[#00bfa5]" /> Sign Interpretation
+                                    <Globe size={13} className="text-primary" /> Sign Interpretation
                                   </>
                                 ) : (
                                   <>
@@ -217,8 +230,8 @@ export function History() {
                               className={cn(
                                 'w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-150',
                                 entry.saved
-                                  ? 'text-[#00bfa5] bg-[#00bfa5]/[0.08] border-[#00bfa5]/20'
-                                  : 'text-text-secondary border-black/[0.06] dark:border-white/[0.05] hover:text-[#00bfa5] hover:bg-white/[0.04]'
+                                  ? 'text-primary bg-primary/[0.08] border-primary/20'
+                                  : 'text-text-secondary border-black/[0.06] dark:border-white/[0.05] hover:text-primary hover:bg-white/[0.04]'
                               )}
                             >
                               <Bookmark size={13} fill={entry.saved ? 'currentColor' : 'none'} />

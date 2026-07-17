@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, Info } from 'lucide-react';
+import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info } from 'lucide-react';
 import { Button } from '../components/Button';
-import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
 import { cn } from '../utils/cn';
+import { wordVariants, overlayVariants } from '../lib/motion';
+import { cameraErrorCopy } from '../lib/cameraErrors';
 import { SUPPORTED_SIGN_LANGUAGES, isLanguageAvailable, DEFAULT_AVAILABLE_LANGUAGE } from '../constants/languages';
 import { useAppData } from '../context/AppDataContext';
 import { useSignDetector, type SignPrediction } from '../hooks/useSignDetector';
@@ -35,11 +36,40 @@ interface TranscriptEntry {
 
 const now = () => new Date().toLocaleTimeString('en-US', { hour12: false });
 
-// FIX: Removed the unused language argument completely to bypass the TS compilation block
 function makeSessionStart(): TranscriptEntry[] {
   return [
     { id: Date.now(), time: now(), text: `Session started · Local translation engine responsive`, direction: 'meta' },
   ];
+}
+
+/** Detected-letter readout with a conic confidence ring. Renders nothing when no letter. */
+function ConfidenceBadge({ letter, conf }: { letter: string; conf: number }) {
+  if (!letter) return null;
+  const confident = conf >= LOW_CONF;
+  const tone = confident ? 'var(--color-conf-high)' : 'var(--color-conf-mid)';
+  const pct = Math.round(conf * 100);
+  return (
+    <div
+      role="status"
+      aria-label={`Detected letter ${letter}, ${pct} percent confidence`}
+      className="glass flex items-center gap-3 rounded-2xl px-4 py-3"
+    >
+      <div
+        className="grid h-12 w-12 place-items-center rounded-full"
+        style={{ background: `conic-gradient(${tone} ${conf * 360}deg, var(--color-surface-alt) 0deg)` }}
+      >
+        <div className="grid h-10 w-10 place-items-center rounded-full bg-surface font-general text-xl font-bold text-text-primary">
+          {letter}
+        </div>
+      </div>
+      <div className="flex flex-col leading-tight">
+        <span className={cn('font-mono text-sm font-bold tabular-nums', confident ? 'text-conf-high' : 'text-conf-mid')}>
+          {pct}%
+        </span>
+        <span className="text-xs text-text-secondary">{confident ? 'Confident' : 'Uncertain'}</span>
+      </div>
+    </div>
+  );
 }
 
 export function Workspace() {
@@ -53,12 +83,13 @@ export function Workspace() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
   const [live, setLive] = useState(true);
-  // FIX: Called cleanly without passing an unused param
   const [transcript, setTranscript] = useState<TranscriptEntry[]>(() => makeSessionStart());
   const [inputText, setInputText] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState('');
   const [reportSent, setReportSent] = useState(false);
+  // Announced via aria-live only when a full word/sentence lands in the transcript.
+  const [announcement, setAnnouncement] = useState('');
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -67,7 +98,9 @@ export function Workspace() {
   // ── Live sign-detection wiring ──────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [camError, setCamError] = useState<string | null>(null);
+  // Raw getUserMedia error object; cameraErrorCopy maps it to friendly copy at render.
+  const [camError, setCamError] = useState<unknown>(null);
+  const [retryTick, setRetryTick] = useState(0);
   const [detected, setDetected] = useState<{ letter: string; conf: number }>({ letter: '', conf: 0 });
   const [currentWord, setCurrentWord] = useState('');
 
@@ -81,7 +114,7 @@ export function Workspace() {
 
   const detecting = cameraOn && mode === 'sign-to-text';
 
-  // Attach / release the webcam stream.
+  // Attach / release the webcam stream. retryTick re-triggers after an error.
   useEffect(() => {
     if (!detecting) {
       setCamError(null);
@@ -97,19 +130,20 @@ export function Workspace() {
           return;
         }
         stream = s;
+        setCamError(null);
         if (videoRef.current) {
           videoRef.current.srcObject = s;
           void videoRef.current.play();
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) setCamError(err instanceof Error ? err.message : 'Camera access denied');
+        if (!cancelled) setCamError(err ?? new Error('Camera access denied'));
       });
     return () => {
       cancelled = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [detecting]);
+  }, [detecting, retryTick]);
 
   // Draw the hand bounding box + landmarks onto the overlay canvas. Box color
   // flags whether the current letter guess is confident (emerald) or
@@ -137,7 +171,7 @@ export function Workspace() {
     ctx.lineWidth = Math.max(2, w * 0.004);
     ctx.strokeRect((minX - pad) * w, (minY - pad) * h, (maxX - minX + pad * 2) * w, (maxY - minY + pad * 2) * h);
 
-    ctx.fillStyle = '#a78bfa';
+    ctx.fillStyle = 'rgba(167, 139, 250, 0.7)';
     const r = Math.max(2, w * 0.006);
     for (const p of landmarks) {
       ctx.beginPath();
@@ -154,6 +188,7 @@ export function Workspace() {
       ...prev,
       { id: Date.now(), time: now(), text: clean, conf: confPct || undefined, lowConfidence: minConf < LOW_CONF, direction: 'outbound' },
     ]);
+    setAnnouncement(clean);
     addHistoryEntry({ text: clean, type: 'sign-to-text', conf: confPct || undefined, languageCode: activeLanguage });
   }, [addHistoryEntry, activeLanguage]);
 
@@ -267,66 +302,135 @@ export function Workspace() {
     setCurrentWord('');
   };
 
-  const currentLanguageLabel = SUPPORTED_SIGN_LANGUAGES.find(l => l.code === activeLanguage)?.label || activeLanguage;
+  const isLive = detecting && live && !camError;
+  const errCopy = camError ? cameraErrorCopy(camError) : null;
+  const liveText = detectorError
+    ? 'Model error'
+    : isLive && !detectorReady
+      ? 'Loading model…'
+      : `${isLive ? 'Live' : 'Paused'} · ${activeLanguage}`;
 
   return (
-    <div className="flex flex-col h-[calc(100svh-3.5rem)] gap-6 p-6 max-w-7xl mx-auto text-text-primary antialiased page-enter">
+    <div className="grid h-[calc(100dvh-3.5rem)] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] text-text-primary antialiased lg:grid-cols-[1fr_380px] lg:grid-rows-[minmax(0,1fr)]">
 
-      {/* ── TOP CONTROL NAVIGATION ROW ────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-border/40">
-        <div className="flex items-center gap-4">
+      {/* Announce only flushed words — never per-letter churn. */}
+      <div aria-live="polite" className="sr-only">{announcement}</div>
 
-          {/* Segmented Mode Picker */}
-          <div className="flex p-1 rounded-full bg-surface-alt border border-border/60 backdrop-blur-md">
-            <button
-              onClick={() => setMode('sign-to-text')}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2 rounded-full text-xs font-semibold tracking-wide transition-all duration-200",
-                mode === 'sign-to-text'
-                  ? "bg-white text-black dark:bg-white dark:text-black shadow-md font-bold"
-                  : "text-text-secondary hover:text-text-primary"
-              )}
-            >
-              <Video size={13} />
-              <span>Sign → Text</span>
-            </button>
-            <button
-              onClick={() => setMode('text-to-sign')}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2 rounded-full text-xs font-semibold tracking-wide transition-all duration-200",
-                mode === 'text-to-sign'
-                  ? "bg-white text-black dark:bg-white dark:text-black shadow-md font-bold"
-                  : "text-text-secondary hover:text-text-primary"
-              )}
-            >
-              <MessageSquare size={13} />
-              <span>Text → Sign</span>
-              <span className="text-[8px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-ember/15 text-ember font-bold">Soon</span>
-            </button>
-          </div>
+      {/* ── CAMERA STAGE ─────────────────────────────────────── */}
+      <section aria-label="Camera" className="relative min-h-[50vh] overflow-hidden bg-black lg:min-h-0">
+        {mode === 'sign-to-text' ? (
+          <>
+            {detecting && (
+              /* Mirrored video + landmark overlay (both flipped together to stay aligned) */
+              <div className="absolute inset-0 [transform:scaleX(-1)]">
+                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+                <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+              </div>
+            )}
 
-          <div className="h-5 w-px bg-border/60" />
+            {/* Inline camera error — the instrument reports its own status */}
+            {detecting && errCopy && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black p-6 text-center">
+                <CameraOff className="h-8 w-8 text-white/50" aria-hidden />
+                <p className="font-semibold text-white">{errCopy.title}</p>
+                <p className="max-w-[40ch] text-sm text-white/70">{errCopy.body}</p>
+                <Button size="sm" className="mt-2" onClick={() => { setCamError(null); setRetryTick((t) => t + 1); }}>
+                  Retry
+                </Button>
+              </div>
+            )}
 
-          {/* Custom Premium Language Dropdown */}
+            {!cameraOn && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+                <CameraOff className="h-8 w-8 text-white/50" aria-hidden />
+                <p className="font-semibold text-white">Camera is off</p>
+                <p className="max-w-[40ch] text-sm text-white/70">Turn the camera back on to translate fingerspelling live.</p>
+                <Button size="sm" className="mt-2" onClick={() => setCameraOn(true)}>Turn on camera</Button>
+              </div>
+            )}
+
+            {/* Detected letter + composing word, above the control bar */}
+            {detecting && !errCopy && (
+              <div className="absolute bottom-20 left-4 z-10 flex flex-col items-start gap-2">
+                {currentWord && (
+                  <span className="glass rounded-full px-3 py-1.5 font-mono text-sm font-bold tracking-[0.2em] text-text-primary">
+                    {currentWord}<span className="typewriter-cursor" />
+                  </span>
+                )}
+                <ConfidenceBadge letter={detected.letter} conf={detected.conf} />
+              </div>
+            )}
+          </>
+        ) : (
+          <AvatarPlaceholder variant="avatar" className="absolute inset-0 h-full w-full rounded-none border-none opacity-85" />
+        )}
+
+        {/* Status pills */}
+        <div className="absolute inset-x-4 top-4 z-10 flex items-start justify-between gap-2">
+          <span className="glass flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-text-primary">
+            <span className={cn('h-2 w-2 rounded-full', isLive ? 'bg-error ember-pulse' : 'bg-text-secondary')} aria-hidden />
+            {liveText}
+          </span>
+          <span
+            className="glass flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-text-primary"
+            title="Video is processed locally. Frames never leave this device."
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden />
+            On-device
+          </span>
+        </div>
+
+        {/* ── FLOATING CONTROL BAR ─────────────────────────── */}
+        <motion.div
+          variants={overlayVariants}
+          initial="initial"
+          animate="enter"
+          className="glass absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-2xl p-2"
+        >
+          <Button
+            variant="icon"
+            size="sm"
+            className="h-9 w-9 rounded-xl p-0"
+            onClick={() => setLive(v => !v)}
+            aria-label={live ? 'Pause translation' : 'Resume translation'}
+          >
+            {live ? <Pause size={15} /> : <Play size={15} />}
+          </Button>
+          <Button
+            variant="icon"
+            size="sm"
+            className={cn('h-9 w-9 rounded-xl p-0', cameraOn && 'border-success/30 text-success')}
+            onClick={() => setCameraOn(v => !v)}
+            aria-label={cameraOn ? 'Disable camera' : 'Enable camera'}
+          >
+            {cameraOn ? <Camera size={15} /> : <CameraOff size={15} />}
+          </Button>
+
+          <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+
+          {/* Language dropdown — opens upward, the bar sits at the bottom */}
           <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-2 h-10 rounded-full border border-border/80 bg-surface-alt px-4 text-xs font-semibold text-text-primary transition-all hover:bg-surface-alt/80 hover:border-border"
+            <Button
+              variant="icon"
+              size="sm"
+              className="h-9 gap-1.5 rounded-xl px-3 text-xs font-semibold"
+              onClick={() => setLangDropdownOpen(v => !v)}
+              aria-expanded={langDropdownOpen}
+              aria-label={`Sign language: ${SUPPORTED_SIGN_LANGUAGES.find(l => l.code === activeLanguage)?.label || activeLanguage}`}
             >
-              <span>{currentLanguageLabel}</span>
-              <ChevronDown size={14} className={cn("text-text-secondary transition-transform duration-200", langDropdownOpen && "transform rotate-180")} />
-            </button>
-
+              {activeLanguage}
+              <ChevronDown size={13} className={cn('transition-transform duration-200', langDropdownOpen && 'rotate-180')} />
+            </Button>
             <AnimatePresence>
               {langDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute left-0 mt-2 w-56 rounded-2xl border border-border bg-surface shadow-xl z-30 overflow-hidden"
+                  variants={overlayVariants}
+                  initial="initial"
+                  animate="enter"
+                  exit="exit"
+                  className="absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-surface shadow-xl"
                 >
-                  <div className="p-1.5 flex flex-col gap-0.5">
+                  <div className="flex flex-col gap-0.5 p-1.5">
                     {SUPPORTED_SIGN_LANGUAGES.map((language) => {
                       const isSelected = language.code === activeLanguage;
                       const disabled = !language.available;
@@ -340,17 +444,17 @@ export function Workspace() {
                             setLangDropdownOpen(false);
                           }}
                           className={cn(
-                            "flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors text-left",
+                            'flex items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-colors',
                             disabled
-                              ? "text-text-secondary/50 cursor-not-allowed"
+                              ? 'cursor-not-allowed text-text-secondary/50'
                               : isSelected
-                                ? "bg-primary/10 text-primary font-bold"
-                                : "text-text-secondary hover:bg-surface-alt hover:text-text-primary"
+                                ? 'bg-primary/10 font-bold text-primary'
+                                : 'text-text-secondary hover:bg-surface-alt hover:text-text-primary',
                           )}
                         >
                           <span>{language.label}</span>
                           {isSelected && !disabled && <Check size={14} className="text-primary" />}
-                          {disabled && <span className="text-[9px] font-mono uppercase tracking-wide text-ember">Soon</span>}
+                          {disabled && <span className="font-mono text-[9px] uppercase tracking-wide text-ember">Soon</span>}
                         </button>
                       );
                     })}
@@ -359,41 +463,39 @@ export function Workspace() {
               )}
             </AnimatePresence>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
           {/* DOC-2: user-facing model-limitation disclosure */}
           <div className="relative" ref={infoRef}>
             <Button
-              variant="secondary"
+              variant="icon"
               size="sm"
-              onClick={() => setInfoOpen((v) => !v)}
+              className="h-9 w-9 rounded-xl p-0"
+              onClick={() => setInfoOpen(v => !v)}
               aria-label="Detection accuracy information"
               aria-expanded={infoOpen}
-              className="gap-2 text-xs text-text-secondary border-border/80 bg-surface-alt hover:bg-surface hover:text-text-primary rounded-full transition-all"
             >
-              <Info size={13} /> Accuracy
+              <Info size={15} />
             </Button>
             <AnimatePresence>
               {infoOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-72 rounded-2xl border border-border bg-surface shadow-xl z-30 p-4 text-left"
+                  variants={overlayVariants}
+                  initial="initial"
+                  animate="enter"
+                  exit="exit"
+                  className="absolute bottom-full right-0 z-30 mb-2 w-72 rounded-2xl border border-border bg-surface p-4 text-left shadow-xl"
                 >
-                  <h3 className="text-xs font-bold text-text-primary mb-2">About detection accuracy</h3>
-                  <p className="text-[11px] text-text-secondary leading-relaxed mb-2">
+                  <h3 className="mb-2 text-xs font-bold text-text-primary">About detection accuracy</h3>
+                  <p className="mb-2 text-[11px] leading-relaxed text-text-secondary">
                     Fingerspelling runs entirely on your device. It works best for clearly distinct hand shapes.
                   </p>
-                  <ul className="text-[11px] text-text-secondary leading-relaxed space-y-1.5">
+                  <ul className="space-y-1.5 text-[11px] leading-relaxed text-text-secondary">
                     <li className="flex gap-2">
-                      <ShieldAlert size={12} className="text-ember shrink-0 mt-0.5" />
+                      <ShieldAlert size={12} className="mt-0.5 shrink-0 text-conf-mid" />
                       <span>Lower accuracy on similar closed-fist letters: <span className="font-mono font-bold text-text-primary">E, S, T, M, N</span>. These are flagged as “Uncertain” live.</span>
                     </li>
                     <li className="flex gap-2">
-                      <span className="text-ember font-bold shrink-0">✕</span>
+                      <span className="shrink-0 font-bold text-conf-mid">✕</span>
                       <span><span className="font-mono font-bold text-text-primary">J</span> and <span className="font-mono font-bold text-text-primary">Z</span> are motion letters and are not yet supported.</span>
                     </li>
                   </ul>
@@ -403,225 +505,115 @@ export function Workspace() {
           </div>
 
           <Button
-            variant="secondary"
+            variant="icon"
             size="sm"
+            className="h-9 w-9 rounded-xl p-0"
             onClick={() => setReportOpen(true)}
-            className="gap-2 text-xs text-text-secondary border-border/80 bg-surface-alt hover:bg-surface hover:text-text-primary rounded-full transition-all"
+            aria-label="Report a translation issue"
           >
-            <AlertTriangle size={13} /> Report error
+            <AlertTriangle size={15} />
           </Button>
-        </div>
-      </div>
+        </motion.div>
+      </section>
 
-      {/* ── MAIN WORKSPACE CONTAINER ───────────────────── */}
-      <div className="flex flex-1 flex-col lg:flex-row gap-6 min-h-0">
-
-        {/* Left Side: Camera / Avatar Viewport */}
-        <div className="flex-1 flex flex-col gap-4 min-h-[320px]">
-          <Card padding="none" className="flex-1 relative overflow-hidden bg-surface-alt border-border/40 backdrop-blur-xl rounded-2xl flex items-center justify-center shadow-sm">
-            <div className="absolute -top-12 -right-12 w-80 h-80 bg-primary/[0.03] dark:bg-teal-500/[0.02] rounded-full blur-[120px] pointer-events-none" />
-
-            {mode === 'sign-to-text' ? (
-              cameraOn ? (
-                camError ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface-alt/40">
-                    <AvatarPlaceholder variant="profile" className="mb-4 opacity-30 scale-95" />
-                    <p className="text-sm font-bold text-text-primary tracking-tight">Camera Unavailable</p>
-                    <p className="text-xs text-text-secondary max-w-xs mt-1 mb-5">{camError}. Grant camera permission and try again.</p>
-                    <Button variant="primary" size="sm" className="rounded-full font-bold px-6 shadow-md transition-transform hover:scale-[1.02]" onClick={() => { setCameraOn(false); setTimeout(() => setCameraOn(true), 60); }}>
-                      Retry Camera
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {/* Mirrored video + landmark overlay (both flipped together to stay aligned) */}
-                    <div className="absolute inset-0 w-full h-full [transform:scaleX(-1)]">
-                      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-                      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                    </div>
-
-                    {/* Live status badge */}
-                    {live && (
-                      <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border border-border/40 z-10 shadow-sm">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-mono tracking-wider font-bold text-text-primary uppercase">
-                          {detectorError ? 'Model error' : detectorReady ? 'Live Studio' : 'Loading model…'}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Real-time confidence badge — flags uncertain guesses */}
-                    <div className={cn(
-                      "absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/70 backdrop-blur-md border z-10 shadow-sm",
-                      detected.letter && detected.conf < LOW_CONF ? "border-ember/40" : "border-border/40"
-                    )}>
-                      {detected.letter && detected.conf < LOW_CONF && (
-                        <ShieldAlert size={11} className="text-ember" />
-                      )}
-                      <span className={cn(
-                        "text-[10px] font-mono font-bold tracking-wide",
-                        detected.letter
-                          ? detected.conf < LOW_CONF ? "text-ember" : "text-emerald-600 dark:text-emerald-400"
-                          : "text-text-secondary"
-                      )}>
-                        {detected.letter ? `${Math.round(detected.conf * 100)}% Confidence` : 'Awaiting hand…'}
-                      </span>
-                    </div>
-
-                    {/* Big detected letter (like the Python overlay) */}
-                    {detected.letter && (
-                      <div className={cn(
-                        "absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-surface/80 backdrop-blur-md border shadow-lg",
-                        detected.conf < LOW_CONF ? "border-ember/50 shadow-ember-glow" : "border-primary/30"
-                      )}>
-                        <span className={cn("text-5xl font-bold", detected.conf < LOW_CONF ? "text-ember" : "gradient-text-primary")}>
-                          {detected.letter}
-                        </span>
-                        {detected.conf < LOW_CONF && (
-                          <span className="text-[8px] font-mono font-bold text-ember/80 tracking-wide uppercase -mt-1">Uncertain</span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Building word strip */}
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-surface/80 backdrop-blur-md border border-border/40 shadow-sm min-w-[8rem] text-center">
-                      <span className="text-sm font-mono font-bold tracking-[0.2em] text-text-primary">
-                        {currentWord || '—'}<span className="typewriter-cursor" />
-                      </span>
-                    </div>
-                  </>
-                )
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-surface-alt/40">
-                  <AvatarPlaceholder variant="profile" className="mb-4 opacity-30 scale-95" />
-                  <p className="text-sm font-bold text-text-primary tracking-tight">Camera Channel Suspended</p>
-                  <p className="text-xs text-text-secondary max-w-xs mt-1 mb-5">Activate camera sequence logic to restore sign interpretation layers.</p>
-                  <Button variant="primary" size="sm" className="rounded-full font-bold px-6 shadow-md transition-transform hover:scale-[1.02]" onClick={() => setCameraOn(true)}>
-                    Enable Camera Pipeline
-                  </Button>
-                </div>
-              )
-            ) : (
-              <AvatarPlaceholder variant="avatar" className="absolute inset-0 w-full h-full border-none rounded-none opacity-85" />
-            )}
-          </Card>
-
-          {/* Clean Floating Media Toolbar */}
-          <div className="flex items-center justify-center gap-3 p-2 bg-surface border border-border/60 backdrop-blur-md rounded-full max-w-sm mx-auto w-full shadow-lg">
-            {/* FR-5: speech input is not implemented — shown disabled, not faked */}
-            <Button variant="icon" size="sm" disabled className="w-10 h-10 rounded-full text-text-secondary/40 cursor-not-allowed relative group" aria-label="Microphone — coming soon" title="Speech input coming soon">
-              <Mic size={16} />
-              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ember/70" />
-            </Button>
-            <Button variant="icon" size="sm" className={cn("w-10 h-10 rounded-full transition-all", cameraOn ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" : "text-text-secondary hover:text-text-primary")} onClick={() => setCameraOn(v => !v)} aria-label={cameraOn ? 'Disable camera' : 'Enable camera'}>
-              {cameraOn ? <Camera size={16} /> : <CameraOff size={16} />}
-            </Button>
-
-            <div className="w-px h-5 bg-border mx-1" />
-
-            <Button variant="icon" size="sm" className="w-10 h-10 rounded-full text-text-secondary hover:text-text-primary" onClick={() => setLive(v => !v)} aria-label={live ? 'Pause translation' : 'Resume translation'}>
-              {live ? <Pause size={16} /> : <Play size={16} />}
-            </Button>
-            <Button variant="icon" size="sm" className="w-10 h-10 rounded-full text-text-secondary hover:text-rose-500 transition-colors" onClick={resetSession} aria-label="Clear session">
-              <RotateCcw size={16} />
-            </Button>
-          </div>
-        </div>
-
-        {/* Right Side: Translation Feed Card */}
-        <Card padding="none" className="w-full lg:w-85 xl:w-96 flex flex-col min-h-[360px] lg:h-auto bg-surface border-border/60 backdrop-blur-xl rounded-2xl shadow-sm">
-          <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between shrink-0">
-            <div>
-              <h2 className="text-xs font-bold tracking-wider uppercase text-text-primary">Translation Stream</h2>
-              <p className="text-[10px] font-mono text-text-secondary mt-0.5">{transcript.length} sequence indices logged</p>
-            </div>
+      {/* ── LIVE TRANSCRIPT ──────────────────────────────────── */}
+      <aside aria-label="Live transcript" className="flex min-h-0 flex-col border-t border-border bg-surface lg:border-l lg:border-t-0">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          {/* Mode picker */}
+          <div className="flex rounded-full bg-surface-alt p-0.5" role="group" aria-label="Translation mode">
             <button
-              onClick={resetSession}
-              className="text-xs font-mono tracking-wide text-text-secondary hover:text-text-primary transition-colors"
+              onClick={() => setMode('sign-to-text')}
+              aria-pressed={mode === 'sign-to-text'}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                mode === 'sign-to-text' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
+              )}
             >
-              Flush
+              <Video size={12} /> Sign → Text
+            </button>
+            <button
+              onClick={() => setMode('text-to-sign')}
+              aria-pressed={mode === 'text-to-sign'}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                mode === 'text-to-sign' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              <MessageSquare size={12} /> Text → Sign
+              <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wide text-ember">Soon</span>
             </button>
           </div>
 
-          {/* Messages Node viewport list */}
-          <div
-            ref={transcriptRef}
-            className="flex-1 overflow-y-auto scrollbar-thin p-5 flex flex-col gap-3 min-h-0"
+          <button
+            onClick={resetSession}
+            aria-label="Clear session transcript"
+            className="flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
           >
-            <AnimatePresence initial={false}>
-              {transcript.map((entry) => (
-                <motion.div
-                  key={entry.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  {entry.direction === 'meta' ? (
-                    <p className="text-[10px] font-mono tracking-wide text-text-secondary text-center py-2 border-y border-border/20 my-1">
+            <RotateCcw size={12} /> Clear
+          </button>
+        </div>
+
+        {/* Transcript list */}
+        <div ref={transcriptRef} className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-4">
+          <AnimatePresence initial={false} mode="popLayout">
+            {transcript.map((entry) => (
+              <motion.div key={entry.id} layout variants={wordVariants} initial="initial" animate="enter">
+                {entry.direction === 'meta' ? (
+                  <p className="py-2 text-center font-mono text-[10px] tracking-wide text-text-secondary">
+                    {entry.text}
+                  </p>
+                ) : (
+                  <div className="flex items-baseline gap-3 py-1.5">
+                    <span className="shrink-0 font-mono text-xs text-text-secondary tabular-nums">{entry.time}</span>
+                    <span
+                      className={cn(
+                        'min-w-0 break-words font-mono text-sm text-text-primary',
+                        entry.lowConfidence && 'underline decoration-conf-mid decoration-dotted underline-offset-4',
+                      )}
+                    >
                       {entry.text}
-                    </p>
-                  ) : (
-                    <div className={cn('flex flex-col', entry.direction === 'inbound' ? 'items-end' : 'items-start')}>
-                      <div className="flex items-center gap-2 mb-1 px-1">
-                        <span className="text-[9px] font-mono text-text-secondary">{entry.time}</span>
-                        {entry.conf && (
-                          <span className={cn(
-                            "flex items-center gap-1 text-[9px] font-mono font-bold",
-                            entry.lowConfidence ? "text-ember" : "text-primary"
-                          )}>
-                            {entry.lowConfidence && <ShieldAlert size={9} />}
-                            [{entry.conf}% accuracy]
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={cn(
-                          'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed tracking-wide shadow-sm border',
-                          entry.direction === 'inbound'
-                            ? 'bg-primary text-white font-medium border-primary rounded-tr-none'
-                            : entry.lowConfidence
-                              ? 'bg-ember/[0.06] border-ember/30 text-text-primary rounded-tl-none'
-                              : 'bg-surface-alt border-border text-text-primary rounded-tl-none'
-                        )}
-                      >
-                        {entry.text}
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+                      {entry.lowConfidence && (
+                        <AlertTriangle className="mb-0.5 ml-1.5 inline h-3.5 w-3.5 text-conf-mid" aria-label="Low confidence guess" />
+                      )}
+                    </span>
+                    {entry.conf !== undefined && (
+                      <span className="ml-auto shrink-0 font-mono text-[10px] text-text-secondary tabular-nums">{entry.conf}%</span>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
 
-          {/* Lower Input Action Box */}
-          <div className="p-4 border-t border-border/40 flex gap-2 shrink-0 bg-surface-alt/50">
-            <Input
-              value={mode === 'sign-to-text' ? inputText : ''}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendText()}
-              disabled={mode !== 'sign-to-text'}
-              placeholder={mode === 'sign-to-text' ? 'Enter transcription text overrides…' : 'Text → Sign is coming soon'}
-              className="flex-1 h-10 text-xs bg-surface border-border focus:border-border/80 rounded-xl text-text-primary placeholder-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Workspace custom overrides text channel input"
-            />
-            <Button
-              size="sm"
-              onClick={sendText}
-              disabled={mode !== 'sign-to-text' || !inputText.trim()}
-              aria-label="Add manual transcript entry"
-              className="px-4 h-10 rounded-xl bg-primary hover:bg-primary/90 disabled:bg-border/40 text-white font-bold flex items-center justify-center transition-all"
-            >
-              <Send size={14} />
-            </Button>
-          </div>
-        </Card>
-      </div>
+        {/* Composer */}
+        <div className="flex shrink-0 gap-2 border-t border-border p-3">
+          <Input
+            value={mode === 'sign-to-text' ? inputText : ''}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendText()}
+            disabled={mode !== 'sign-to-text'}
+            placeholder={mode === 'sign-to-text' ? 'Type to add to the transcript…' : 'Text → Sign is coming soon'}
+            className="h-10 flex-1 text-sm"
+            aria-label="Add text to the transcript"
+          />
+          <Button
+            size="sm"
+            onClick={sendText}
+            disabled={mode !== 'sign-to-text' || !inputText.trim()}
+            aria-label="Add manual transcript entry"
+            className="h-10 rounded-xl px-4"
+          >
+            <Send size={14} />
+          </Button>
+        </div>
+      </aside>
 
-      {/* ── MODAL ERROR RECTIFICATION OVERLAY ────────────────── */}
+      {/* ── REPORT ISSUE MODAL (existing flow, preserved) ────── */}
       <AnimatePresence>
         {reportOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/40 dark:bg-black/70"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md dark:bg-black/70"
             onClick={() => setReportOpen(false)}
           >
             <motion.div
@@ -630,31 +622,31 @@ export function Workspace() {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-surface rounded-2xl border border-border p-6 shadow-2xl"
+              className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
             >
               {reportSent ? (
-                <div className="text-center py-6 space-y-2">
-                  <p className="text-primary font-bold text-xl tracking-tight">Report Logged</p>
-                  <p className="text-xs text-text-secondary">System interpretation variance parameters updated successfully.</p>
+                <div className="space-y-2 py-6 text-center">
+                  <p className="text-xl font-bold tracking-tight text-primary">Report logged</p>
+                  <p className="text-xs text-text-secondary">Thanks — this helps improve detection.</p>
                 </div>
               ) : (
                 <>
-                  <h3 className="font-sans font-bold text-lg text-text-primary tracking-tight mb-1">
-                    Report translation anomaly
+                  <h3 className="mb-1 font-general text-lg font-bold tracking-tight text-text-primary">
+                    Report a translation issue
                   </h3>
-                  <p className="text-xs text-text-secondary mb-4">
-                    Flag context evaluation states to train engine tracking layers.
+                  <p className="mb-4 text-xs text-text-secondary">
+                    Tell us what was signed and what the app showed instead.
                   </p>
                   <textarea
                     value={reportText}
                     onChange={(e) => setReportText(e.target.value)}
-                    className="w-full h-28 rounded-xl border border-border bg-surface-alt p-3 text-sm text-text-primary placeholder-text-secondary outline-none focus:border-primary/40 resize-none mb-4 transition-all"
-                    placeholder="e.g., 'Expected alternative phrase signature mapping variants…'"
-                    aria-label="Anomaly logging field input"
+                    className="mb-4 h-28 w-full resize-none rounded-xl border border-border bg-surface-alt p-3 text-sm text-text-primary outline-none transition-all placeholder:text-text-secondary focus:border-primary/40"
+                    placeholder="e.g., 'I signed HELLO but it showed HELO…'"
+                    aria-label="Describe the translation issue"
                   />
                   <div className="flex justify-end gap-3">
-                    <Button variant="ghost" className="text-xs text-text-secondary hover:text-text-primary rounded-full" size="sm" onClick={() => setReportOpen(false)}>Cancel</Button>
-                    <Button size="sm" className="rounded-full bg-primary text-white font-bold px-5 transition-transform hover:scale-[1.01] disabled:opacity-40" disabled={!reportText.trim()} onClick={sendReport}>Submit Report</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setReportOpen(false)}>Cancel</Button>
+                    <Button size="sm" disabled={!reportText.trim()} onClick={sendReport}>Submit report</Button>
                   </div>
                 </>
               )}

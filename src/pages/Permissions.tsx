@@ -1,114 +1,73 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Mic, CheckCircle2 } from 'lucide-react';
-import { Card } from '../components/Card';
+import { Camera } from 'lucide-react';
 import { Button } from '../components/Button';
-import { cn } from '../utils/cn';
+import { cameraErrorCopy } from '../lib/cameraErrors';
 
-const PERMS = [
-  {
-    key: 'camera' as const,
-    icon: Camera,
-    label: 'Camera Access',
-    sub: 'Required to map localized hand landmarks and track gestural sequences.',
-    required: true,
-  },
-  {
-    key: 'mic' as const,
-    icon: Mic,
-    label: 'Microphone Access',
-    sub: 'Optional — unlocks immediate localized speech-to-sign tracking utilities.',
-    required: false,
-  },
-];
-
+/**
+ * Prime → request → recover. The browser permission prompt is never the first
+ * thing the user learns about the camera: explain the why (on-device, no
+ * server) first, request only on explicit click, and map failures to
+ * recoverable inline copy. "Not now" always exits to the same place success does.
+ */
+// ponytail: the old fake mic "Allow" toggle was dropped — it never requested
+// anything. Add a real mic request here when speech features actually need one.
 export function Permissions() {
-  const [granted, setGranted] = useState<Record<string, boolean>>({ camera: false, mic: false });
   const navigate = useNavigate();
+  const [requesting, setRequesting] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
-  const allRequired = PERMS.filter(p => p.required).every(p => granted[p.key]);
+  const enableCamera = async () => {
+    setRequesting(true);
+    setError(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Only the permission grant matters here — the Workspace opens its own stream.
+      s.getTracks().forEach(t => t.stop());
+      navigate('/preferences');
+    } catch (err) {
+      setError(err);
+      setRequesting(false);
+    }
+  };
+
+  const errCopy = error != null ? cameraErrorCopy(error) : null;
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-6 bg-gradient-to-b from-transparent to-black/[0.01] dark:to-white/[0.01]">
       <div className="w-full max-w-md p-8 rounded-3xl bg-white/[0.02] dark:bg-white/[0.01] border border-black/[0.06] dark:border-white/[0.05] backdrop-blur-xl shadow-xl">
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-general font-bold tracking-tight text-text-primary mb-2" style={{ fontFamily: 'var(--font-general)' }}>
-            Device Permissions
-          </h1>
-          <p className="text-sm text-text-secondary leading-relaxed">
-            SignBridge pipelines run securely on-device. Camera frames and audio streams are processed in memory and never leave your hardware boundary.
-          </p>
+        <div className="w-12 h-12 rounded-2xl bg-primary-soft text-primary flex items-center justify-center mb-6">
+          <Camera size={22} aria-hidden />
         </div>
 
-        <div className="flex flex-col gap-3 mb-8">
-          {PERMS.map(({ key, icon: Icon, label, sub, required }) => {
-            const isGranted = granted[key];
-            return (
-              <Card
-                key={key}
-                padding="md"
-                className={cn(
-                  'transition-all duration-200 bg-white/[0.01] dark:bg-white/[0.005] border border-black/[0.06] dark:border-white/[0.05] rounded-xl',
-                  isGranted ? 'border-[#00bfa5]/40 bg-[#00bfa5]/[0.03] dark:bg-[#00bfa5]/[0.04]' : ''
-                )}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all border',
-                    isGranted
-                      ? 'bg-[#00bfa5]/[0.1] text-[#00bfa5] border-[#00bfa5]/20'
-                      : 'bg-black/[0.02] dark:bg-white/[0.02] text-text-secondary border-transparent'
-                  )}>
-                    <Icon size={18} />
-                  </div>
+        <h1 className="text-2xl font-general font-bold tracking-tight text-text-primary mb-2" style={{ fontFamily: 'var(--font-general)' }}>
+          SignBridge needs your camera to see your hands.
+        </h1>
+        <p className="text-sm text-text-secondary leading-relaxed mb-8">
+          Video is processed on this device by a local model. Frames never leave your browser — there's no server that could receive them.
+        </p>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-text-primary">{label}</p>
-                      {!required && (
-                        <span className="text-[10px] font-mono-sb text-text-secondary tracking-wide uppercase px-1.5 py-0.5 rounded bg-black/[0.04] dark:bg-white/[0.04]">
-                          optional
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-text-secondary mt-0.5 leading-normal">{sub}</p>
-                  </div>
+        {errCopy && (
+          <div role="alert" className="mb-6 p-4 rounded-xl border border-error/20 bg-error/[0.06]">
+            <p className="text-sm font-bold text-text-primary">{errCopy.title}</p>
+            <p className="text-xs text-text-secondary mt-1 leading-relaxed">{errCopy.body}</p>
+          </div>
+        )}
 
-                  {isGranted ? (
-                    <CheckCircle2 size={20} className="text-[#00bfa5] shrink-0" />
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setGranted(g => ({ ...g, [key]: true }))}
-                      className="shrink-0 h-8 text-xs font-bold border border-border bg-transparent hover:bg-white/[0.05] rounded-lg transition-all"
-                    >
-                      Allow
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-
-        <Button
-          fullWidth
-          disabled={!allRequired}
-          onClick={() => navigate('/preferences')}
-          className={cn(
-            "h-11 rounded-xl text-sm font-bold transition-all shadow-md active:scale-[0.98]",
-            allRequired ? "bg-[#00bfa5] hover:bg-[#00a892] text-white" : "bg-border text-text-secondary cursor-not-allowed"
-          )}
-        >
-          Continue
-        </Button>
-
-        {!allRequired && (
-          <p className="text-center text-xs font-mono-sb text-text-secondary/80 mt-3.5 tracking-wide">
-            Camera access is required to proceed.
+        {requesting ? (
+          <p aria-live="polite" className="h-11 flex items-center justify-center text-sm font-medium text-text-secondary">
+            Waiting for browser permission…
           </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Button fullWidth onClick={enableCamera} className="h-11 rounded-xl text-sm font-bold">
+              {errCopy ? 'Try again' : 'Enable camera'}
+            </Button>
+            <Button fullWidth variant="ghost" onClick={() => navigate('/preferences')} className="h-11 rounded-xl text-sm">
+              {errCopy ? 'Continue without camera' : 'Not now — explore first'}
+            </Button>
+          </div>
         )}
       </div>
     </div>

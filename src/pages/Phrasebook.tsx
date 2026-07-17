@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Edit3, Trash2, Plus } from 'lucide-react';
+import { Play, Edit3, Trash2, Plus, BookMarked } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
-import { SignStroke } from '../components/SignStroke';
+import { EmptyState } from '../components/EmptyState';
 import { useAppData } from '../context/AppDataContext';
+
+/** Starter suggestions shown in the empty state — one tap adds them for real. */
+const EXAMPLE_PHRASES: [category: string, phrase: string][] = [
+  ['Greetings', 'Hello, my name is…'],
+  ['Daily', 'Thank you'],
+  ['Travel', 'Where is the restroom?'],
+];
 
 export function Phrasebook() {
   const { state, addPhrase: addPhraseToStore, removePhrase: removePhraseFromStore } = useAppData();
@@ -47,20 +54,54 @@ export function Phrasebook() {
       </div>
 
       {Object.keys(filteredData).length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <SignStroke variant="empty-state" color="var(--color-border)" width={100} height={90} className="mb-5 opacity-60" />
-          <p className="font-semibold text-text-secondary mb-1">
-            {search ? 'No phrases found' : 'No saved phrases yet'}
-          </p>
-          <p className="text-sm text-text-secondary mb-5">
-            {search ? `No results matching "${search}"` : 'Content will appear here after backend integration.'}
-          </p>
-          {!search && (
-            <Button variant="secondary" size="sm">
-              <Plus size={14} className="mr-1" /> Add your first phrase
+        search ? (
+          // Lighter inline state: phrases may exist, the search just has no hits.
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <p className="text-sm text-text-secondary">No matches for "{search}"</p>
+            <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
+              Clear search
             </Button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <EmptyState
+            icon={BookMarked}
+            title="Save the phrases you use most"
+            body="Pin greetings, your name, common questions — anything you want ready at a counter without re-signing it."
+            cta={
+              <div className="flex flex-col items-center gap-4">
+                {addingTo ? (
+                  <div className="flex w-full max-w-sm gap-2 p-3 rounded-xl border border-primary/30 bg-primary-soft">
+                    <Input
+                      placeholder="Type a new phrase…"
+                      value={newPhrase}
+                      onChange={e => setNewPhrase(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addPhrase(addingTo)}
+                      className="flex-1 h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={() => addPhrase(addingTo)} disabled={!newPhrase.trim()} className="shrink-0">Save</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setAddingTo(null)} className="shrink-0">Cancel</Button>
+                  </div>
+                ) : (
+                  <Button onClick={() => setAddingTo('Daily')}>
+                    <Plus size={14} aria-hidden /> Add your first phrase
+                  </Button>
+                )}
+                <div className="flex flex-wrap justify-center gap-2">
+                  {EXAMPLE_PHRASES.map(([cat, phrase]) => (
+                    <button
+                      key={phrase}
+                      onClick={() => addPhraseToStore(cat, phrase)}
+                      className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full border border-border bg-surface text-xs font-medium text-text-secondary hover:text-primary hover:border-primary/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    >
+                      <Plus size={12} aria-hidden /> {phrase}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
+          />
+        )
       ) : (
         Object.entries(filteredData).map(([category, phrases]) => (
           <div key={category}>

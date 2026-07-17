@@ -4,7 +4,8 @@
   /* ─── Typography ─── */
   --font-general: 'Sora', 'Inter', sans-serif;
   --font-inter: 'Inter', sans-serif;
-  --font-mono: 'Geist Sans', 'IBM Plex Mono', monospace;
+  /* Transcript/data font must be an actual monospace; Geist Sans is not. */
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
 
   /* ─── Colors (resolved via CSS vars below) ─── */
   --color-background: var(--color-background);
@@ -14,12 +15,16 @@
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
   --color-primary-soft: var(--color-primary-soft);
+  --color-on-primary: var(--color-on-primary);
   --color-ember: var(--color-ember);
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
   --color-border: var(--color-border);
   --color-success: var(--color-success);
   --color-error: var(--color-error);
+  --color-conf-high: var(--color-conf-high);
+  --color-conf-mid: var(--color-conf-mid);
+  --color-conf-low: var(--color-conf-low);
 
   /* ─── Shadows ─── */
   --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
@@ -43,12 +48,17 @@
     --color-primary: #0D9488;
     --color-primary-hover: #0F766E;
     --color-primary-soft: rgba(13, 148, 136, 0.09);
+    --color-on-primary: #FFFFFF;
     --color-ember: #EA580C;
     --color-text-primary: #111827;
     --color-text-secondary: #6B7280;
     --color-border: #E2DDD6;
     --color-success: #059669;
     --color-error: #DC2626;
+    /* AI confidence vocabulary — always paired with a non-color signal */
+    --color-conf-high: #059669;
+    --color-conf-mid: #B45309;
+    --color-conf-low: #DC2626;
   }
 
   /* ─── DARK THEME — "Midnight Luminous" ─── */
@@ -60,12 +70,17 @@
     --color-primary: #A78BFA;
     --color-primary-hover: #C084FC;
     --color-primary-soft: rgba(167, 139, 250, 0.13);
+    /* Dark ink on the light-purple primary — white fails contrast there. */
+    --color-on-primary: #14102A;
     --color-ember: #F59E0B;
     --color-text-primary: #F1F5F9;
     --color-text-secondary: #94A3B8;
     --color-border: rgba(167, 139, 250, 0.14);
     --color-success: #34D399;
     --color-error: #F87171;
+    --color-conf-high: #34D399;
+    --color-conf-mid: #FBBF24;
+    --color-conf-low: #F87171;
   }
 
   /* ─── HIGH CONTRAST (UX-2) — maximizes text/border contrast ─── */
@@ -78,12 +93,16 @@
     --color-primary: #00E5FF;
     --color-primary-hover: #33EEFF;
     --color-primary-soft: rgba(0, 229, 255, 0.2);
+    --color-on-primary: #000000;
     --color-ember: #FFB000;
     --color-text-primary: #FFFFFF;
     --color-text-secondary: #E0E0E0;
     --color-border: #FFFFFF;
     --color-success: #00FF66;
     --color-error: #FF5555;
+    --color-conf-high: #00FF66;
+    --color-conf-mid: #FFB000;
+    --color-conf-low: #FF5555;
   }
   .high-contrast * {
     border-color: currentColor;
@@ -170,21 +189,6 @@
   .shadow-glow-teal { box-shadow: var(--shadow-glow-teal); }
   .shadow-ember-glow { box-shadow: var(--shadow-ember-glow); }
 
-  /* ─── Gradient Text ─── */
-  .gradient-text {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 50%, var(--color-ember) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-text-primary {
-    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
   /* ─── Aurora Backgrounds ─── */
   .aurora-bg {
     position: relative;
@@ -210,19 +214,18 @@
   }
 
   /* ─── Glassmorphism ─── */
+  /* One theme-aware glass surface. Reserved for elements floating over live
+     content (camera feed, sticky navbar) — solid surfaces everywhere else. */
   .glass {
     backdrop-filter: blur(16px) saturate(180%);
-    background: rgba(13, 20, 36, 0.75);
-    border: 1px solid rgba(167, 139, 250, 0.12);
+    background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
   }
-  .glass-light {
-    backdrop-filter: blur(16px) saturate(180%);
-    background: rgba(255, 255, 255, 0.80);
-    border: 1px solid rgba(226, 221, 214, 0.8);
-  }
-  .glass-surface {
-    backdrop-filter: blur(12px) saturate(160%);
-    background: rgba(26, 36, 56, 0.65);
+  /* Transparency undermines guaranteed contrast — glass goes solid in high contrast. */
+  .high-contrast .glass {
+    backdrop-filter: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
   }
 
   /* ─── Ember live pulse ─── */
@@ -333,14 +336,6 @@
 
   .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-  .glass {
-    backdrop-filter: blur(12px) saturate(180%);
-    background: rgba(30, 25, 48, 0.7);
-  }
-  .glass-light {
-    backdrop-filter: blur(12px) saturate(180%);
-    background: rgba(255, 255, 255, 0.75);
-  }
 }
 
 /* ─── REDUCE MOTION (UX-6) ─── */

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import { Card } from '../components/Card';
 import { useAppData } from '../context/AppDataContext';
+import { getAverageLatencyMs } from '../lib/latencyMetrics';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const LANG_COLORS = {
@@ -13,6 +14,7 @@ const LANG_COLORS = {
 export function Analytics() {
   const { stats } = useAppData();
   const totalLanguageHits = Object.values(stats.languageDistribution).reduce((sum, n) => sum + n, 0);
+  const avgLatencyMs = getAverageLatencyMs();
 
   const BAR_DAYS = DAY_LABELS.map((label, idx) => ({ label, val: stats.weeklyCounts[idx] ?? 0 }));
   const maxBar = Math.max(1, ...BAR_DAYS.map((day) => day.val));
@@ -64,8 +66,12 @@ export function Analytics() {
         <div className="flex flex-col gap-4">
           <Card>
             <div className="text-[10px] font-mono-sb uppercase tracking-widest text-text-secondary mb-2">Avg. latency</div>
-            <div className="text-4xl font-general font-semibold mb-1" style={{ fontFamily: 'var(--font-general)' }}>—</div>
-            <p className="text-xs text-text-secondary">Available after backend integration</p>
+            <div className="text-4xl font-general font-semibold mb-1" style={{ fontFamily: 'var(--font-general)' }}>
+              {avgLatencyMs !== null ? `${avgLatencyMs}ms` : '—'}
+            </div>
+            <p className="text-xs text-text-secondary">
+              {avgLatencyMs !== null ? 'Rolling average of on-device inference' : 'No detections recorded this session yet'}
+            </p>
           </Card>
           <Card>
             <div className="text-[10px] font-mono-sb uppercase tracking-widest text-text-secondary mb-2">Avg. confidence</div>

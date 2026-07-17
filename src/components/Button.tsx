@@ -12,34 +12,33 @@ interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'ref'> {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', fullWidth, children, disabled, ...props }, ref) => {
 
-    // Base structural style - Restored font-general matching your onboarding screens
+    // Base structural style. All colors route through theme tokens so light,
+    // dark, and high-contrast themes stay in sync (index.css owns the values).
     const base =
       'relative inline-flex items-center justify-center font-general font-semibold select-none ' +
       'transition-all duration-300 disabled:opacity-30 disabled:pointer-events-none ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00bfa5]/50 ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ' +
       'focus-visible:ring-offset-2 focus-visible:ring-offset-background overflow-hidden active:scale-[0.98]';
 
-    // Premium UI Theme variants - Restored clean flat/subtle brand-aligned teal gradients
     const variants: Record<string, string> = {
       primary:
-        'bg-[#00bfa5] text-white ' +
-        'shadow-[0_4px_14px_rgba(0,191,165,0.2)] hover:shadow-[0_6px_20px_rgba(0,191,165,0.35)] ' +
-        'hover:bg-[#00a892] border border-white/5',
+        'bg-primary text-on-primary hover:bg-primary-hover border border-white/5 ' +
+        'shadow-sm hover:shadow-md',
 
       secondary:
-        'bg-white/[0.03] dark:bg-white/[0.01] text-text-primary border border-black/[0.06] dark:border-white/[0.05] ' +
-        'backdrop-blur-md hover:border-[#00bfa5]/30 hover:bg-[#00bfa5]/[0.04] hover:text-[#00bfa5] shadow-sm',
+        'bg-surface text-text-primary border border-border ' +
+        'hover:border-primary/40 hover:text-primary shadow-sm',
 
       outline:
-        'border border-[#00bfa5]/40 text-[#00bfa5] bg-transparent ' +
-        'hover:bg-[#00bfa5]/[0.06] hover:border-[#00bfa5]/80',
+        'border border-primary/40 text-primary bg-transparent ' +
+        'hover:bg-primary-soft hover:border-primary/80',
 
       ghost:
-        'text-text-secondary hover:text-text-primary hover:bg-white/[0.04] dark:hover:bg-white/[0.02]',
+        'text-text-secondary hover:text-text-primary hover:bg-surface-hover',
 
       icon:
-        'bg-white/[0.02] dark:bg-white/[0.01] border border-black/[0.06] dark:border-white/[0.05] text-text-secondary ' +
-        'backdrop-blur-sm hover:border-[#00bfa5]/30 hover:text-[#00bfa5] hover:bg-white/[0.05] shadow-sm',
+        'bg-surface border border-border text-text-secondary ' +
+        'hover:border-primary/40 hover:text-primary shadow-sm',
 
       destructive:
         'bg-error/[0.06] text-error border border-error/20 ' +

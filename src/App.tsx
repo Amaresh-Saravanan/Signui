@@ -24,6 +24,7 @@ const Contact = lazy(() => import('./pages/Contact').then(m => ({ default: m.Con
 const Onboarding = lazy(() => import('./pages/Onboarding').then(m => ({ default: m.Onboarding })));
 const Permissions = lazy(() => import('./pages/Permissions').then(m => ({ default: m.Permissions })));
 const Preferences = lazy(() => import('./pages/Preferences').then(m => ({ default: m.Preferences })));
+const Licenses = lazy(() => import('./pages/Licenses').then(m => ({ default: m.Licenses })));
 
 // Lightweight route-transition fallback, theme-aware via CSS variables.
 function PageFallback() {
@@ -65,6 +66,7 @@ function App() {
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/about" element={<About />} />
+                  <Route path="/licenses" element={<Licenses />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/contact" element={<Contact />} />
                 </Route>
