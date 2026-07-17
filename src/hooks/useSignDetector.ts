@@ -11,7 +11,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   FilesetResolver,
   HandLandmarker,
-  type HandLandmarkerResult,
+  GestureRecognizer,
 } from '@mediapipe/tasks-vision';
 import { classifyASL, type Landmark } from '../lib/aslClassifier';
 
@@ -35,10 +35,22 @@ interface UseSignDetectorReturn {
   ready: boolean;
   error: string | null;
   prediction: SignPrediction;
+  /** 'trained' once the versioned GestureRecognizer model has loaded;
+   *  'heuristic' when running the geometric fallback classifier (F-2 —
+   *  trained model primary, heuristic flagged fallback). */
+  modelMode: 'trained' | 'heuristic';
+  /** Version string of the active trained model, or null in heuristic mode
+   *  (F-37 — version surfaced in-app). */
+  modelVersion: string | null;
 }
 
 const WASM_PATH = '/wasm';
-const MODEL_PATH = '/models/hand_landmarker.task';
+const HAND_MODEL_PATH = '/models/hand_landmarker.task';
+// Trained gesture recognizer (M4.1/4.3). Versioned filename — /models is
+// immutable-cached for a year, so a new model ships as a new filename
+// (asl-fingerspelling-v2.task, …), never an in-place overwrite (F-37).
+const GESTURE_MODEL_PATH = '/models/asl-fingerspelling-v1.task';
+const GESTURE_MODEL_VERSION = 'asl-fingerspelling-v1';
 
 /** Pure gate so the fps cap is unit-testable without rAF/MediaPipe. */
 export function frameIsDue(now: number, lastTick: number, intervalMs: number): boolean {
@@ -60,33 +72,54 @@ export function useSignDetector({
     landmarks: null,
   });
 
+  const gestureRecognizerRef = useRef<GestureRecognizer | null>(null);
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
   const lastTickRef = useRef<number>(0);
   const historyRef = useRef<string[]>([]);
   const onPredictionRef = useRef(onPrediction);
+  const [modelMode, setModelMode] = useState<'trained' | 'heuristic'>('heuristic');
 
   useEffect(() => {
     onPredictionRef.current = onPrediction;
   }, [onPrediction]);
 
-  // Load the model once.
+  // Load the model once. Prefers the trained GestureRecognizer (F-2); falls
+  // back to HandLandmarker + the geometric heuristic classifier if the
+  // trained model hasn't shipped yet or fails to load, so the app degrades
+  // gracefully instead of breaking (M4.3).
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
-        const landmarker = await HandLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: MODEL_PATH },
-          runningMode: 'VIDEO',
-          numHands: 1,
-        });
-        if (cancelled) {
-          landmarker.close();
-          return;
+
+        try {
+          const recognizer = await GestureRecognizer.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath: GESTURE_MODEL_PATH },
+            runningMode: 'VIDEO',
+            numHands: 1,
+          });
+          if (cancelled) {
+            recognizer.close();
+            return;
+          }
+          gestureRecognizerRef.current = recognizer;
+          setModelMode('trained');
+        } catch {
+          const landmarker = await HandLandmarker.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath: HAND_MODEL_PATH },
+            runningMode: 'VIDEO',
+            numHands: 1,
+          });
+          if (cancelled) {
+            landmarker.close();
+            return;
+          }
+          landmarkerRef.current = landmarker;
+          setModelMode('heuristic');
         }
-        landmarkerRef.current = landmarker;
         setReady(true);
       } catch (e) {
         if (!cancelled) {
@@ -99,6 +132,8 @@ export function useSignDetector({
     load();
     return () => {
       cancelled = true;
+      gestureRecognizerRef.current?.close();
+      gestureRecognizerRef.current = null;
       landmarkerRef.current?.close();
       landmarkerRef.current = null;
     };
@@ -126,6 +161,25 @@ export function useSignDetector({
     [smoothingWindow],
   );
 
+  // Shared sink for both detection paths (trained model / heuristic) so the
+  // smoothing + callback logic isn't duplicated per branch.
+  const emit = useCallback(
+    (letter: string, confidence: number, landmarks: Landmark[] | null) => {
+      if (!landmarks) {
+        historyRef.current = [];
+        const empty: SignPrediction = { letter: '', confidence: 0, landmarks: null };
+        setPrediction(empty);
+        onPredictionRef.current?.(empty);
+        return;
+      }
+      const stableLetter = smooth(letter);
+      const next: SignPrediction = { letter: stableLetter, confidence, landmarks };
+      setPrediction(next);
+      onPredictionRef.current?.(next);
+    },
+    [smooth],
+  );
+
   // Detection loop. Capped to targetFps (ML-7/PERF-4) and fully suspended
   // while the tab is hidden rather than just skipping work, so the browser
   // stops scheduling rAF callbacks for this loop entirely.
@@ -141,42 +195,46 @@ export function useSignDetector({
       if (frameIsDue(now, lastTickRef.current, intervalMs)) {
         lastTickRef.current = now;
         const video = videoRef.current;
+        const recognizer = gestureRecognizerRef.current;
         const landmarker = landmarkerRef.current;
 
         if (
           video &&
-          landmarker &&
+          (recognizer || landmarker) &&
           video.readyState >= 2 &&
           video.currentTime !== lastVideoTimeRef.current
         ) {
           lastVideoTimeRef.current = video.currentTime;
-          let result: HandLandmarkerResult | undefined;
-          try {
-            result = landmarker.detectForVideo(video, performance.now());
-          } catch {
-            // Transient frame errors are non-fatal; skip this frame.
-          }
 
-          if (result && result.landmarks.length > 0) {
-            const lm = result.landmarks[0] as Landmark[];
-            const raw = classifyASL(lm);
-            const stableLetter = smooth(raw.letter);
-            const next: SignPrediction = {
-              letter: stableLetter,
-              confidence: raw.confidence,
-              landmarks: lm,
-            };
-            setPrediction(next);
-            onPredictionRef.current?.(next);
-          } else {
-            historyRef.current = [];
-            const empty: SignPrediction = {
-              letter: '',
-              confidence: 0,
-              landmarks: null,
-            };
-            setPrediction(empty);
-            onPredictionRef.current?.(empty);
+          if (recognizer) {
+            let result: ReturnType<GestureRecognizer['recognizeForVideo']> | undefined;
+            try {
+              result = recognizer.recognizeForVideo(video, performance.now());
+            } catch {
+              // Transient frame errors are non-fatal; skip this frame.
+            }
+            if (result && result.landmarks.length > 0 && result.gestures.length > 0) {
+              const lm = result.landmarks[0] as Landmark[];
+              const top = result.gestures[0][0];
+              // 'none' is the trained model's explicit no-gesture class.
+              emit(top.categoryName === 'none' ? '' : top.categoryName, top.score, lm);
+            } else {
+              emit('', 0, null);
+            }
+          } else if (landmarker) {
+            let result: ReturnType<HandLandmarker['detectForVideo']> | undefined;
+            try {
+              result = landmarker.detectForVideo(video, performance.now());
+            } catch {
+              // Transient frame errors are non-fatal; skip this frame.
+            }
+            if (result && result.landmarks.length > 0) {
+              const lm = result.landmarks[0] as Landmark[];
+              const raw = classifyASL(lm);
+              emit(raw.letter, raw.confidence, lm);
+            } else {
+              emit('', 0, null);
+            }
           }
         }
       }
@@ -211,7 +269,13 @@ export function useSignDetector({
       stopLoop();
       historyRef.current = [];
     };
-  }, [enabled, ready, videoRef, smooth, targetFps]);
+  }, [enabled, ready, videoRef, emit, targetFps]);
 
-  return { ready, error, prediction };
+  return {
+    ready,
+    error,
+    prediction,
+    modelMode,
+    modelVersion: modelMode === 'trained' ? GESTURE_MODEL_VERSION : null,
+  };
 }

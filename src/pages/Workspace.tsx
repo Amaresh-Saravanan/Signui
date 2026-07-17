@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info } from 'lucide-react';
+import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info, LogOut } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
@@ -73,7 +74,8 @@ function ConfidenceBadge({ letter, conf }: { letter: string; conf: number }) {
 }
 
 export function Workspace() {
-  const { state, addHistoryEntry, incrementReports } = useAppData();
+  const { state, addHistoryEntry, incrementReports, signOut } = useAppData();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>('sign-to-text');
   // ML-5: never start on a language that has no shipped model.
   const [activeLanguage, setActiveLanguage] = useState<'ISL' | 'ASL' | 'BSL'>(
@@ -94,6 +96,8 @@ export function Workspace() {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // ── Live sign-detection wiring ──────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,6 +106,15 @@ export function Workspace() {
   const [camError, setCamError] = useState<unknown>(null);
   const [retryTick, setRetryTick] = useState(0);
   const [detected, setDetected] = useState<{ letter: string; conf: number }>({ letter: '', conf: 0 });
+
+  const firstName = state.user.firstName || '';
+  const lastName = state.user.lastName || '';
+  const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || 'U';
+
+  const handleSignOut = () => {
+    signOut();
+    navigate('/');
+  };
   const [currentWord, setCurrentWord] = useState('');
 
   // Accumulation state kept in refs so the per-frame callback stays stable.
@@ -232,7 +245,7 @@ export function Workspace() {
     }
   }, [drawOverlay, commitWord]);
 
-  const { ready: detectorReady, error: detectorError } = useSignDetector({
+  const { ready: detectorReady, error: detectorError, modelMode, modelVersion } = useSignDetector({
     videoRef,
     enabled: detecting && live && !camError,
     onPrediction: handlePrediction,
@@ -259,6 +272,9 @@ export function Workspace() {
       }
       if (infoRef.current && !infoRef.current.contains(target)) {
         setInfoOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setProfileOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -489,6 +505,13 @@ export function Workspace() {
                   <p className="mb-2 text-[11px] leading-relaxed text-text-secondary">
                     Fingerspelling runs entirely on your device. It works best for clearly distinct hand shapes.
                   </p>
+                  <p className="mb-2 text-[11px] leading-relaxed text-text-secondary">
+                    {modelMode === 'trained' ? (
+                      <>Model: <span className="font-mono font-bold text-text-primary">{modelVersion}</span> (trained)</>
+                    ) : (
+                      <>Model: <span className="font-mono font-bold text-text-primary">geometric fallback</span> — the trained model hasn't shipped yet.</>
+                    )}
+                  </p>
                   <ul className="space-y-1.5 text-[11px] leading-relaxed text-text-secondary">
                     <li className="flex gap-2">
                       <ShieldAlert size={12} className="mt-0.5 shrink-0 text-conf-mid" />
@@ -544,13 +567,56 @@ export function Workspace() {
             </button>
           </div>
 
-          <button
-            onClick={resetSession}
-            aria-label="Clear session transcript"
-            className="flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
-          >
-            <RotateCcw size={12} /> Clear
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetSession}
+              aria-label="Clear session transcript"
+              className="flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+            >
+              <RotateCcw size={12} /> Clear
+            </button>
+
+            {/* Profile dropdown */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen(v => !v)}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-[11px] font-bold text-primary transition-colors hover:border-primary/60 hover:bg-primary/20"
+                aria-label="User menu"
+                aria-expanded={profileOpen}
+              >
+                {initials}
+              </button>
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-border bg-surface shadow-xl"
+                  >
+                    <div className="px-3.5 py-3">
+                      <p className="text-xs font-bold text-text-primary">{`${firstName} ${lastName}`.trim() || 'User'}</p>
+                      <p className="mt-0.5 truncate text-[10px] text-text-secondary">{state.user.email || ''}</p>
+                    </div>
+                    <div className="h-px bg-border" />
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate('/dashboard'); }}
+                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-text-secondary transition-colors hover:bg-surface-alt hover:text-text-primary"
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-error transition-colors hover:bg-error/10"
+                    >
+                      <LogOut size={12} /> Log Out
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
 
         {/* Transcript list */}
