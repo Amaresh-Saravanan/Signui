@@ -13,6 +13,7 @@ Legend: ✅ done · 🔶 partial · ⬜ not started · 🔒 blocked on decision
 | M0 Foundation | Safe iteration | ✅ complete |
 | M1 Honesty | No misrepresentation | ✅ complete |
 | M2 Access control (client) | Data rights | ✅ complete |
+| M2.5 Conversation UX | Counter-ready transcript | ⬜ |
 | **M3 Deploy** | **Ship the static SPA** | **⬜ NEXT — deployable now** |
 | M4 Real model + E2E | ML quality + safety net | ⬜ |
 | M5 Backend & sync | Real accounts | 🔒 needs D-1/D-2 |
@@ -54,6 +55,28 @@ Legend: ✅ done · 🔶 partial · ⬜ not started · 🔒 blocked on decision
 
 ---
 
+## M2.5 — Conversation UX (counter-ready) ⬜
+
+> Client-side product features from `IDEAS.md` that make the transcript usable in
+> a real counter interaction. **No backend, no ML retraining** — can ship before
+> or alongside M3 deploy.
+
+| # | Task | PRD | Definition of done | Status |
+|---|---|---|---|---|
+| 2.5.1 | Word auto-complete/prediction (top-3 chips, Phrasebook-weighted) | F-41 | pure `predict()` unit-tested; chip tap replaces word buffer | ⬜ |
+| 2.5.2 | Counter Mode full-screen transcript (48px+, high-contrast) | F-42 | toggle from Workspace; `Esc`/tap exits; reduce-motion honored | ⬜ |
+| 2.5.3 | Quick phrase shortcuts bar (default set + saved Phrasebook) | F-43 | one tap appends phrase to transcript + history | ⬜ |
+| 2.5.4 | Undo last word (word-level stack) | F-44 | pops last word from transcript + history | ⬜ |
+| 2.5.5 | Confidence heatmap overlay (Settings toggle, off by default) | F-45 | canvas dots colored by confidence; respects high-contrast | ⬜ |
+| 2.5.6 | Session summary export (`.txt` / share) | F-46 | downloads current session transcript as text | ⬜ |
+| 2.5.7 | Low-light preprocessing (Settings toggle, off by default) | F-47 | brightened canvas feeds detector; fps within F-6 budget | ⬜ |
+
+**M2.5 exit criteria:** the transcript is counter-usable — predictable input,
+readable at arm's length, one-tap phrases, and recoverable from a single misread
+word.
+
+---
+
 ## M3 — Deploy the static SPA ⬜ NEXT (no blockers)
 
 > The product is honest and local-first today. This milestone puts it on the
@@ -63,11 +86,11 @@ Legend: ✅ done · 🔶 partial · ⬜ not started · 🔒 blocked on decision
 |---|---|---|---|---|
 | 3.1 | Add `vercel.json` (rewrites + CSP header + cache headers) | F-30/F-33 | file at repo root per [`TDD.md` §9.1](./TDD.md#91-verceljson-add-at-repo-root--not-present-yet) | ✅ `vercel.json` added at repo root |
 | 3.2 | Delete CSP `<meta>` tag from `index.html` | F-30 | CSP only in header; no drift | ✅ meta tag removed; build verified (81.14 KB gzip entry, unchanged) |
-| 3.3 | Connect repo to Vercel (Vite preset, Node 22) | F-33 | build `npm run build`, output `dist` | ⬜ |
-| 3.4 | Verify SPA deep-link rewrite | F-33 | refresh `/workspace` → 200 | ⬜ |
-| 3.5 | Verify immutable caching on `/wasm` `/models` | F-33 | `Cache-Control: …immutable` | ⬜ |
-| 3.6 | Run deployment sanity checklist (below) on preview URL | — | all boxes checked | ⬜ |
-| 3.7 | Confirm rollback path (promote previous deploy) | F-39 | documented + tested once | ⬜ |
+| 3.3 | Connect repo to Vercel (Vite preset, Node 22) | F-33 | build `npm run build`, output `dist` | ⬜ _local build verified green: `dist` in 1.7s, entry 200,282 B gzip (under 204,800 budget), no MediaPipe leak. TODO: paste production URL + first deploy id._ |
+| 3.4 | Verify SPA deep-link rewrite | F-33 | refresh `/workspace` → 200 | ⬜ _TODO: hard-refresh `<preview-url>/workspace` → paste HTTP status (expect 200)._ |
+| 3.5 | Verify immutable caching on `/wasm` `/models` | F-33 | `Cache-Control: …immutable` | ⬜ _TODO: paste `Cache-Control` response header for a `/wasm` (or `/models`) asset (expect `public, max-age=31536000, immutable`)._ |
+| 3.6 | Run deployment sanity checklist (below) on preview URL | — | all boxes checked | ⬜ _TODO: tick every box in the checklist below; note any CSP console violation + fix before promoting._ |
+| 3.7 | Confirm rollback path (promote previous deploy) | F-39 | documented + tested once | ⬜ _TODO: Vercel → Deployments → Promote previous → paste promoted deploy id + confirm app served the older build._ |
 | 3.8 | Add OSS licenses/attribution page (MediaPipe Apache-2.0 + upstream) | F-40 | in-app route/section | ✅ `/licenses` route (`src/pages/Licenses.tsx`), linked from About; MediaPipe + VAKULABHUSHAN/sign-language credited; full dependency table with real license fields |
 
 ### M3 deployment sanity checklist (run on the Vercel preview URL)

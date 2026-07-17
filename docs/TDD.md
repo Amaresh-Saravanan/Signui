@@ -242,6 +242,21 @@ function useSignDetector(opts: {
 | Phrasebook Play/Edit | F-15 | Wire `onClick` handlers (currently dead) — Play = TTS/preview, Edit = inline rename. |
 | Contrast | F-20 | Replace sub-AA low-opacity literals; verify with axe in CI. |
 
+### 6.4 Conversation UX features (M2.5, from `IDEAS.md`)
+
+All client-side — no backend, no ML retraining. These live in `Workspace.tsx`
+plus small helpers; the detection pipeline (§5) is untouched except where noted.
+
+| Feature | Req | Design intent |
+|---|---|---|
+| Word prediction | F-41 | Static JSON word list loaded lazily on Workspace entry; pure `predict(prefix, phrasebook): string[]` does prefix match (plain `filter` or a trie) over the current word buffer → top-3 chips above the transcript, saved-Phrasebook matches weighted first. Tap a chip → replace buffer, flush to transcript. Unit-testable in isolation. |
+| Counter Mode | F-42 | Boolean UI state in `Workspace`; renders the transcript into a `position:fixed inset-0` overlay at 48px+ using `.high-contrast` tokens. No pipeline change. Tap/`Esc` exits; honors reduce-motion. |
+| Quick phrase bar | F-43 | Horizontal scroll strip of chips above the transcript; default set from a new `constants/phrases.ts`, merged with `phrasebook['Saved']`. Tap → append phrase to transcript + history (no fingerspelling). |
+| Undo last word | F-44 | Push each committed word onto a `wordStack` ref as it flushes (§5.1 `FLUSH_FRAMES`); Undo pops the last word from transcript + history. O(1); no re-run of detection. |
+| Confidence heatmap | F-45 | Reuse the `landmarks` already returned by `useSignDetector`; draw dots on a `<canvas>` overlay colored by per-landmark visibility/score (green→amber). Settings toggle, off by default; hidden or swapped for shape/size cues under `.high-contrast`. |
+| Session export | F-46 | Serialize the current session's transcript entries → `.txt` `Blob` → download or Web Share API. No new storage. |
+| Low-light preprocess | F-47 | Optional pre-filter: draw `<video>` to an offscreen canvas, boost brightness/contrast, feed *that canvas* to `detectForVideo` instead of the raw element. Settings toggle, off by default; measure fps cost against the F-6 budget. |
+
 ---
 
 ## 7. Backend Design (M5 — additive, not yet built)
@@ -386,6 +401,7 @@ leak check. Red gate blocks merge. E2E (Playwright) added at M4.
 | F-14/F-19 | `AppDataContext` (history, `exportData`, `signOut`) | client ✅ |
 | F-16/F-17/F-18 | future `/api` + `AppDataContext` swap | ⬜ |
 | F-20…F-28 | pages + `AccessibilityEffects` + new hooks | partial |
+| F-41…F-47 | `Workspace.tsx` + `constants/phrases.ts` + `predict()`/export helpers | ⬜ |
 | F-29/F-30 | `index.html` CSP → `vercel.json` | meta ✅ / header ⬜ |
 | F-32/F-34 | `App.tsx` lazy, `ci.yml` | ✅ |
 | F-33/F-39 | `vercel.json` + Vercel | ⬜ |

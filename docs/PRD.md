@@ -131,6 +131,27 @@ Priority: **P0** = launch blocker · **P1** = credible v1.0 · **P2** = post-lau
 | F-39 | Rollback: app bundle and model independently revertible in minutes | P0 |
 | F-40 | Open-source licenses/attribution page (MediaPipe Apache-2.0 + upstream) | P0 |
 
+### 5.5 Conversation UX — counter-ready (from `IDEAS.md`)
+
+Client-side product features that make the transcript usable in a real counter
+interaction. **None require a backend or ML retraining**; all fit before or
+alongside deployment (milestone M2.5).
+
+| ID | Requirement | Priority |
+|---|---|---|
+| F-41 | Word auto-complete/prediction: prefix-match dictionary suggests 2–3 words after partial fingerspelling; saved Phrasebook entries weighted first | P1 |
+| F-42 | Counter Mode: full-screen, large-type (48px+), high-contrast transcript view for the hearing counterpart to read at arm's length | P1 |
+| F-43 | Quick phrase shortcuts bar: one-tap common counter phrases above the transcript, customizable from the saved Phrasebook | P1 |
+| F-44 | Undo last word: single-tap removal of the last committed word from the live transcript (word-level history stack) | P1 |
+| F-45 | Hand-landmark confidence heatmap overlay: optional canvas overlay coloring joints by tracking confidence; off by default, respects high-contrast | P2 |
+| F-46 | Session summary export: export a full counter conversation as `.txt` / share sheet after the session | P2 |
+| F-47 | Low-light preprocessing: brighten camera frames before the hand detector to improve accuracy in dim rooms; off by default | P2 |
+
+> **Note (priority):** `IDEAS.md` ranks Speech-to-Text (F-9) and Word Prediction
+> (F-41) as its two highest-impact items. F-41 is scheduled in M2.5; F-9 remains
+> P2/M6 because it introduces browser-vendor audio egress (privacy pillar review
+> required) — revisit its milestone once that trade-off is decided.
+
 ---
 
 ## 6. User Stories (acceptance-oriented)
@@ -174,6 +195,7 @@ Priority: **P0** = launch blocker · **P1** = credible v1.0 · **P2** = post-lau
 | **M0 — Foundation** ✅ | Safe iteration | CI, unit tests, code-splitting, self-hosted fonts, CSP meta |
 | **M1 — Honesty** ✅ | No misrepresentation | Language gating, real sign-out, reduce-motion, high-contrast, disclosure, mic/avatar gated |
 | **M2 — Access control** ✅ (client) | Data rights | Client session + seam, guards, export, delete, consent banner |
+| **M2.5 — Conversation UX** | Counter-ready transcript | Word prediction, Counter Mode, quick phrases, undo, heatmap, session export, low-light (F-41…F-47) |
 | **M3 — Deploy** | Ship it | `vercel.json`, CSP header, deploy runbook, rollback verified |
 | **M4 — Real model + E2E** | ML quality + safety net | Trained `.task`, accuracy floors, fps cap, Playwright fake-camera E2E, model versioning |
 | **M5 — Backend & sync** | Real accounts | Managed auth into `signIn()` seam, `/api` + Postgres, sync, server GDPR, observability |
