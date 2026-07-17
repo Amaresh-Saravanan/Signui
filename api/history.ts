@@ -71,20 +71,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const [row] = await db
-      .insert(history)
-      .values({
-        clerkUserId,
-        text: parsed.data.text,
-        type: parsed.data.type,
-        conf: parsed.data.conf,
-        saved: parsed.data.saved,
-        languageCode: parsed.data.languageCode,
-        timestamp: parsed.data.timestamp,
-      })
-      .returning({ id: history.id });
+    // Upsert on the client-supplied id (last-write-wins). The composite PK
+    // (clerkUserId, id) scopes it to this user — a repeat sync of the same
+    // entry updates in place instead of creating a duplicate.
+    const values = {
+      id: parsed.data.id,
+      clerkUserId,
+      text: parsed.data.text,
+      type: parsed.data.type,
+      conf: parsed.data.conf,
+      saved: parsed.data.saved,
+      languageCode: parsed.data.languageCode,
+      timestamp: parsed.data.timestamp,
+    };
 
-    res.status(201).json({ id: row.id });
+    await db
+      .insert(history)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [history.clerkUserId, history.id],
+        set: {
+          text: values.text,
+          type: values.type,
+          conf: values.conf,
+          saved: values.saved,
+          languageCode: values.languageCode,
+          timestamp: values.timestamp,
+        },
+      });
+
+    res.status(201).json({ id: parsed.data.id });
     return;
   }
 

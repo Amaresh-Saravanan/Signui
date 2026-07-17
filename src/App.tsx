@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
+import { hasClerk } from './lib/clerk';
 import { ThemeProvider } from './context/ThemeContext';
 import { AppDataProvider } from './context/AppDataContext';
 import { AccessibilityEffects } from './context/AccessibilityEffects';
@@ -35,6 +37,13 @@ function PageFallback() {
   );
 }
 
+// Finalizes a Clerk OAuth redirect (Google). Only meaningful with Clerk
+// configured; otherwise there is no session to complete, so bounce to /auth.
+function SsoCallback() {
+  if (!hasClerk) return <Navigate to="/auth" replace />;
+  return <AuthenticateWithRedirectCallback />;
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -48,6 +57,8 @@ function App() {
                 {/* Public */}
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
+                {/* Clerk OAuth (Google) redirect lands here to finalize the session. */}
+                <Route path="/sso-callback" element={<SsoCallback />} />
                 {/* Authenticated, mid-onboarding (no onboarding-complete guard) */}
                 <Route element={<RequireAuth requireOnboarded={false} />}>
                   <Route path="/onboarding" element={<Onboarding />} />
