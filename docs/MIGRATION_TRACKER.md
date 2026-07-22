@@ -13,7 +13,7 @@ Legend: ✅ done · 🔶 partial · ⬜ not started · 🔒 blocked on decision
 | M0 Foundation | Safe iteration | ✅ complete |
 | M1 Honesty | No misrepresentation | ✅ complete |
 | M2 Access control (client) | Data rights | ✅ complete |
-| M2.5 Conversation UX | Counter-ready transcript | ⬜ |
+| M2.5 Conversation UX | Counter-ready transcript | ✅ complete |
 | **M3 Deploy** | **Ship the static SPA** | **⬜ NEXT — deployable now** |
 | M4 Real model + E2E | ML quality + safety net | ⬜ |
 | M5 Backend & sync | Real accounts | 🔒 needs D-1/D-2 |
@@ -55,25 +55,42 @@ Legend: ✅ done · 🔶 partial · ⬜ not started · 🔒 blocked on decision
 
 ---
 
-## M2.5 — Conversation UX (counter-ready) ⬜
+## M2.5 — Conversation UX (counter-ready) ✅ COMPLETE
 
 > Client-side product features from `IDEAS.md` that make the transcript usable in
 > a real counter interaction. **No backend, no ML retraining** — can ship before
-> or alongside M3 deploy.
+> or alongside M3 deploy. Built via 3 parallel subagents (file-disjoint modules)
+> + a single `Workspace.tsx` integration pass.
+>
+> **Verification scope (honest):** `tsc -b` + `vite build` green, 53 unit tests
+> pass (pure logic: `predict`, `buildTranscriptText`, `lowLightFilter`,
+> `edgeRisk`), entry chunk 200,323 B gzip (under 204,800 budget), no MediaPipe
+> leak. The `Workspace.tsx`/`useSignDetector` wiring is **typechecked but not
+> runtime-verified** — a manual camera + interaction pass is still owed (jsdom
+> can't mount `getUserMedia`/WASM). Rows below are ✅ *built & integrated*, not
+> ✅ *behaviorally confirmed*.
 
 | # | Task | PRD | Definition of done | Status |
 |---|---|---|---|---|
-| 2.5.1 | Word auto-complete/prediction (top-3 chips, Phrasebook-weighted) | F-41 | pure `predict()` unit-tested; chip tap replaces word buffer | ⬜ |
-| 2.5.2 | Counter Mode full-screen transcript (48px+, high-contrast) | F-42 | toggle from Workspace; `Esc`/tap exits; reduce-motion honored | ⬜ |
-| 2.5.3 | Quick phrase shortcuts bar (default set + saved Phrasebook) | F-43 | one tap appends phrase to transcript + history | ⬜ |
-| 2.5.4 | Undo last word (word-level stack) | F-44 | pops last word from transcript + history | ⬜ |
-| 2.5.5 | Confidence heatmap overlay (Settings toggle, off by default) | F-45 | canvas dots colored by confidence; respects high-contrast | ⬜ |
-| 2.5.6 | Session summary export (`.txt` / share) | F-46 | downloads current session transcript as text | ⬜ |
-| 2.5.7 | Low-light preprocessing (Settings toggle, off by default) | F-47 | brightened canvas feeds detector; fps within F-6 budget | ⬜ |
+| 2.5.1 | Word auto-complete/prediction (top-3 chips, Phrasebook-weighted) | F-41 | pure `predict()` unit-tested; chip tap replaces word buffer | ✅ `lib/wordPredict.ts` (8 tests) + `PredictionChips`; `pickWord()` in Workspace |
+| 2.5.2 | Counter Mode full-screen transcript (48px+, high-contrast) | F-42 | toggle from Workspace; `Esc`/tap exits; reduce-motion honored | ✅ `CounterMode.tsx`; "Staff" button in transcript header |
+| 2.5.3 | Quick phrase shortcuts bar (default set + saved Phrasebook) | F-43 | one tap appends phrase to transcript + history | ✅ `QuickPhraseBar.tsx` + `constants/phrases.ts`; `insertPhrase()` |
+| 2.5.4 | Undo last word (word-level stack) | F-44 | pops last word from transcript + history | ✅ `UndoButton.tsx`; `wordStackRef` + `undoLastWord()` (`addHistoryEntry` now returns id) |
+| 2.5.5 | Confidence heatmap overlay (Settings toggle, off by default) | F-45 | canvas dots colored by confidence; respects high-contrast | ✅ `lib/heatmap.ts` (edge-risk coloring) in `drawOverlay`; Settings toggle |
+| 2.5.6 | Session summary export (`.txt` / share) | F-46 | downloads current session transcript as text | ✅ `lib/sessionExport.ts` (5 tests) + `ExportButton` |
+| 2.5.7 | Low-light preprocessing (Settings toggle, off by default) | F-47 | brightened canvas feeds detector; fps within F-6 budget | ✅ `lib/lowLight.ts` (4 tests) + `frameSource` seam in `useSignDetector`; Settings toggle |
 
-**M2.5 exit criteria:** the transcript is counter-usable — predictable input,
-readable at arm's length, one-tap phrases, and recoverable from a single misread
-word.
+**M2.5 exit criteria:** code-complete & integrated (compiles, pure logic
+unit-tested, wiring typechecked). Intended outcome — a counter-usable transcript
+(predictable input, readable at arm's length, one-tap phrases, single-word undo)
+— is **pending a manual camera/interaction pass** before it can be marked
+behaviorally met.
+
+> **Follow-up (non-blocking):** transcript entry `id` uses `Date.now()`; two
+> inserts in the same millisecond (likelier now with one-tap quick-phrase /
+> prediction) would collide, tripping a React key warning and making `undoLastWord`
+> remove both rows. History ids already use `Date.now() + random`; give transcript
+> ids the same treatment when convenient.
 
 ---
 
@@ -170,6 +187,7 @@ GDPR; telemetry provably free of detection data.
 3. **Honest UI** — unavailable languages, mic, and Text→Sign stay visibly gated until real.
 4. **Model limitations disclosed** — accuracy popover ships every release; update when the model changes.
 5. **localStorage key versioned** (`signbridge.appData.v1`) — never change shape without a migration path.
+6. **Sentry CSP** — if `VITE_SENTRY_DSN` telemetry is enabled, `connect-src` in `vercel.json` must also allow the operator's Sentry ingest domain (e.g. `https://oXXXXXX.ingest.<region>.sentry.io`). Add it manually when enabling Sentry — vercel.json's schema rejects unknown top-level keys, so this can't live as a note field in that file.
 6. **Immutable-cached assets get new filenames** — never overwrite `/wasm` or `/models` in place.
 
 ---

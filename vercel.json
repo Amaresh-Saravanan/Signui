@@ -1,5 +1,4 @@
 {
-  "_csp_note_ops5": "If VITE_SENTRY_DSN telemetry is enabled, connect-src must also allow the operator's Sentry ingest domain (e.g. https://oXXXXXX.ingest.<region>.sentry.io). Append it manually when enabling Sentry — do not hardcode a placeholder here.",
   "rewrites": [
     { "source": "/((?!api/|assets/|wasm/|models/|favicon.svg).*)", "destination": "/index.html" }
   ],
