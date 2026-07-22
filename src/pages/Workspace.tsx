@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info, LogOut } from 'lucide-react';
+import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info, LogOut, Users } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
@@ -13,6 +13,15 @@ import { SUPPORTED_SIGN_LANGUAGES, isLanguageAvailable, DEFAULT_AVAILABLE_LANGUA
 import { useAppData } from '../context/AppDataContext';
 import { useSignDetector, type SignPrediction } from '../hooks/useSignDetector';
 import type { Landmark } from '../lib/aslClassifier';
+import { predict } from '../lib/wordPredict';
+import { QUICK_PHRASES } from '../constants/phrases';
+import { buildTranscriptText, downloadTranscript } from '../lib/sessionExport';
+import { drawHeatmap } from '../lib/heatmap';
+import { applyLowLightBoost } from '../lib/lowLight';
+import { PredictionChips } from '../components/workspace/PredictionChips';
+import { QuickPhraseBar } from '../components/workspace/QuickPhraseBar';
+import { CounterMode } from '../components/workspace/CounterMode';
+import { ExportButton } from '../components/workspace/ExportButton';
 
 // Frames a letter must stay stable before it is committed to the word buffer.
 const COMMIT_FRAMES = 8;
@@ -129,6 +138,14 @@ export function Workspace() {
   // can pop the most recent one from both places at once.
   const wordStackRef = useRef<{ transcriptId: number; historyId: number | null }[]>([]);
   const [canUndo, setCanUndo] = useState(false);
+  // F-42: full-screen "Show to Staff" counter display.
+  const [counterOpen, setCounterOpen] = useState(false);
+  // F-45: mirror the heatmap preference into a ref so the stable drawOverlay
+  // callback can read it without re-subscribing.
+  const heatmapRef = useRef(state.preferences.heatmap);
+  useEffect(() => { heatmapRef.current = state.preferences.heatmap; }, [state.preferences.heatmap]);
+  // F-47: offscreen canvas that holds the brightened frame for low-light mode.
+  const lowLightCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const detecting = cameraOn && mode === 'sign-to-text';
 
@@ -189,12 +206,20 @@ export function Workspace() {
     ctx.lineWidth = Math.max(2, w * 0.004);
     ctx.strokeRect((minX - pad) * w, (minY - pad) * h, (maxX - minX + pad * 2) * w, (maxY - minY + pad * 2) * h);
 
-    ctx.fillStyle = 'rgba(167, 139, 250, 0.7)';
-    const r = Math.max(2, w * 0.006);
-    for (const p of landmarks) {
-      ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, r, 0, Math.PI * 2);
-      ctx.fill();
+    // F-45: optional per-joint confidence heatmap (edge-risk colored) instead
+    // of the default landmark dots, when enabled in Settings.
+    if (heatmapRef.current) {
+      drawHeatmap(ctx, landmarks, w, h, {
+        highContrast: document.documentElement.classList.contains('high-contrast'),
+      });
+    } else {
+      ctx.fillStyle = 'rgba(167, 139, 250, 0.7)';
+      const r = Math.max(2, w * 0.006);
+      for (const p of landmarks) {
+        ctx.beginPath();
+        ctx.arc(p.x * w, p.y * h, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }, []);
 
@@ -261,10 +286,25 @@ export function Workspace() {
     }
   }, [drawOverlay, commitWord]);
 
+  // F-47: when low-light boost is on, feed the model a brightened canvas frame
+  // instead of the raw <video> (timing still driven by the video element).
+  const frameSource = useMemo(() => {
+    if (!state.preferences.lowLight) return undefined;
+    return (video: HTMLVideoElement) => {
+      let c = lowLightCanvasRef.current;
+      if (!c) {
+        c = document.createElement('canvas');
+        lowLightCanvasRef.current = c;
+      }
+      return applyLowLightBoost(video, c) ?? video;
+    };
+  }, [state.preferences.lowLight]);
+
   const { ready: detectorReady, error: detectorError, modelMode, modelVersion } = useSignDetector({
     videoRef,
     enabled: detecting && live && !camError,
     onPrediction: handlePrediction,
+    frameSource,
   });
 
   useEffect(() => {
@@ -339,6 +379,56 @@ export function Workspace() {
     setCanUndo(false);
   };
 
+  // ── M2.5 conversation-UX helpers ────────────────────────────
+  // F-41: word predictions for the in-progress fingerspelled word.
+  const suggestions = useMemo(
+    () => predict(currentWord, state.phrasebook, 3),
+    [currentWord, state.phrasebook],
+  );
+
+  // F-43: one-tap phrases = saved phrasebook first, then defaults.
+  const quickPhrases = useMemo(() => {
+    const saved = state.phrasebook.Saved ?? [];
+    return [...saved, ...QUICK_PHRASES.filter((p) => !saved.includes(p))];
+  }, [state.phrasebook]);
+
+  // F-42: lines shown in the counter display (translated content only).
+  const counterLines = useMemo(
+    () => transcript.filter((e) => e.direction !== 'meta').map((e) => e.text),
+    [transcript],
+  );
+  const hasTranscript = counterLines.length > 0;
+
+  // F-43: insert a canned phrase into the transcript + history, and register it
+  // on the undo stack so Undo removes it too.
+  const insertPhrase = (phrase: string) => {
+    const clean = phrase.trim();
+    if (!clean) return;
+    const transcriptId = Date.now();
+    setTranscript((prev) => [...prev, { id: transcriptId, time: now(), text: clean, direction: 'outbound' }]);
+    setAnnouncement(clean);
+    const historyId = addHistoryEntry({ text: clean, type: 'sign-to-text', languageCode: activeLanguage });
+    wordStackRef.current.push({ transcriptId, historyId });
+    setCanUndo(true);
+  };
+
+  // F-41: accept a predicted word — drop the in-progress spelling and insert it.
+  const pickWord = (word: string) => {
+    candidateRef.current = '';
+    candidateStableRef.current = 0;
+    lastCommittedRef.current = '';
+    wordBufferRef.current = '';
+    wordMinConfRef.current = 1;
+    emptyFramesRef.current = 0;
+    setCurrentWord('');
+    insertPhrase(word);
+  };
+
+  // F-46: export the current session transcript as a .txt file.
+  const handleExportTranscript = () => {
+    downloadTranscript(buildTranscriptText(transcript));
+  };
+
   const isLive = detecting && live && !camError;
   const errCopy = camError ? cameraErrorCopy(camError) : null;
   const liveText = detectorError
@@ -394,6 +484,7 @@ export function Workspace() {
                     {currentWord}<span className="typewriter-cursor" />
                   </span>
                 )}
+                {currentWord && <PredictionChips suggestions={suggestions} onPick={pickWord} />}
                 <ConfidenceBadge letter={detected.letter} conf={detected.conf} />
               </div>
             )}
@@ -536,7 +627,7 @@ export function Workspace() {
                   <ul className="space-y-1.5 text-[11px] leading-relaxed text-text-secondary">
                     <li className="flex gap-2">
                       <ShieldAlert size={12} className="mt-0.5 shrink-0 text-conf-mid" />
-                      <span>Lower accuracy on similar closed-fist letters: <span className="font-mono font-bold text-text-primary">E, S, T, M, N</span>. These are flagged as “Uncertain” live.</span>
+                      <span>Lower accuracy on: <span className="font-mono font-bold text-text-primary">E, H, M, R, U, X</span> (under 95%). These are flagged as "Uncertain" live.</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="shrink-0 font-bold text-conf-mid">✕</span>
@@ -591,6 +682,17 @@ export function Workspace() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* F-46: export transcript · F-42: counter display */}
+            <ExportButton onExport={handleExportTranscript} disabled={!hasTranscript} />
+            <button
+              onClick={() => setCounterOpen(true)}
+              disabled={!hasTranscript}
+              aria-label="Show transcript in counter mode"
+              title="Show to staff"
+              className="flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
+            >
+              <Users size={12} /> Staff
+            </button>
             <button
               onClick={resetSession}
               aria-label="Clear session transcript"
@@ -675,6 +777,13 @@ export function Workspace() {
           </AnimatePresence>
         </div>
 
+        {/* F-43: one-tap quick phrases */}
+        {mode === 'sign-to-text' && (
+          <div className="shrink-0 border-t border-border px-3 py-2">
+            <QuickPhraseBar phrases={quickPhrases} onPick={insertPhrase} />
+          </div>
+        )}
+
         {/* Composer */}
         <div className="flex shrink-0 gap-2 border-t border-border p-3">
           <Input
@@ -743,6 +852,9 @@ export function Workspace() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── COUNTER MODE (F-42) ─────────────────────────────── */}
+      {counterOpen && <CounterMode lines={counterLines} onClose={() => setCounterOpen(false)} />}
     </div>
   );
 }
