@@ -4,19 +4,23 @@
 
 /* ── CSS Variables ──────────────────────────────────── */
 :root {
-  --color-bg: #0a0a0f;
-  --color-surface: #12121a;
-  --color-surface-hover: #1a1a25;
-  --color-text: #f2f2f0;
-  --color-muted: #9d9da8;
-  --color-accent: #22d3ee;
-  --color-accent-dim: rgba(34, 211, 238, 0.15);
-  --color-emerald: #34d399;
-  --color-emerald-dim: rgba(52, 211, 153, 0.15);
-  --color-line: rgba(255, 255, 255, 0.06);
-  --color-line-hover: rgba(255, 255, 255, 0.12);
+  /* Color custom properties below are aliased to the app's shared tokens
+     (src/index.css) so Landing tracks the active theme instead of a
+     hardcoded dark palette. --color-surface / --color-surface-hover are
+     intentionally NOT redeclared here: they already exist as global tokens
+     in index.css under the same name, and redefining them in terms of
+     themselves would create an invalid self-referential custom property. */
+  --color-bg: var(--color-background);
+  --color-text: var(--color-text-primary);
+  --color-muted: var(--color-text-secondary);
+  --color-accent: var(--color-primary);
+  --color-accent-dim: var(--color-primary-soft);
+  --color-emerald: var(--color-success);
+  --color-emerald-dim: color-mix(in srgb, var(--color-success) 15%, transparent);
+  --color-line: var(--color-border);
+  --color-line-hover: color-mix(in srgb, var(--color-border) 60%, var(--color-text-secondary) 40%);
 
-  --font-sans: 'Inter', 'Geist', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
 
   --text-hero: clamp(3rem, 10vw, 9rem);
   --text-h2: clamp(2rem, 5vw, 4rem);
@@ -62,7 +66,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--gutter);
-  background: rgba(10, 10, 15, 0.85);
+  background: color-mix(in srgb, var(--color-bg) 85%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--color-line);
 }
@@ -299,7 +303,7 @@
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-emerald) 50%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-emerald) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -380,7 +384,7 @@
   overflow: hidden;
   padding: 1rem 0;
   border-top: 1px solid var(--color-line);
-  background: rgba(10, 10, 15, 0.5);
+  background: color-mix(in srgb, var(--color-bg) 50%, transparent);
 }
 
 .marquee__track {
@@ -1038,6 +1042,10 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(100px);
+  opacity: 0.18;
+}
+
+.dark .cta__orb {
   opacity: 0.4;
 }
 
