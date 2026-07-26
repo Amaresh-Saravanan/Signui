@@ -395,12 +395,12 @@ function AuthForm({ actions }: { actions: AuthActions }) {
             ) : pendingVerification ? (
               `Enter the code we sent to ${pending.email}.`
             ) : isSubmitted ? (
-              'Check your email coordinates for recovery parameters.'
+              'Check your email for a link to reset your password.'
             ) : (
               <>
-                {mode === 'login' && 'Sign in to access your tracking environment.'}
-                {mode === 'signup' && 'Register your profile to deploy interactive nodes.'}
-                {mode === 'forgot' && 'Enter your email to configure a reset loop.'}
+                {mode === 'login' && 'Sign in to continue to SignBridge.'}
+                {mode === 'signup' && 'Create an account to get started.'}
+                {mode === 'forgot' && "Enter your email and we'll send you a reset code."}
               </>
             )}
           </p>
@@ -546,14 +546,14 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                 className="text-center py-2 space-y-4 flex flex-col items-center"
               >
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  A verification transmission token link was directed successfully toward your layout address.
+                  We sent a confirmation link to your email address.
                 </p>
                 <Button
                   onClick={() => setIsSubmitted(false)}
                   variant="secondary"
                   className="text-xs font-semibold px-4 h-9 rounded-lg"
                 >
-                  Resend Email Index
+                  Resend Email
                 </Button>
               </motion.div>
             )}
