@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Moon, Sun, Zap } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { LogoMark } from './LogoMark';
 
 export function Navbar({ hideSidebar }: { hideSidebar?: boolean }) {
   const { theme, toggleTheme } = useTheme();
@@ -11,17 +12,7 @@ export function Navbar({ hideSidebar }: { hideSidebar?: boolean }) {
       {/* ── BRAND LOGO LINK (PURE CODE & CSS - NO IMAGES) ────────────────── */}
       <Link to="/" className="flex items-center gap-3 group shrink-0" aria-label="SignBridge home">
 
-        {/* Custom Crafted Infinity Hands Logo Mark */}
-        <div className="relative w-8 h-8 flex items-center justify-center select-none scale-105">
-          {/* Left/Top Hand Wing */}
-          <div className="absolute top-0 left-0 w-5 h-5 border-[3.5px] border-primary rounded-full rounded-tl-none -rotate-45 group-hover:scale-105 transition-transform duration-300" />
-
-          {/* Right/Bottom Hand Wing */}
-          <div className="absolute bottom-0 right-0 w-5 h-5 border-[3.5px] border-primary rounded-full rounded-br-none -rotate-45 group-hover:scale-105 transition-transform duration-300" />
-
-          {/* Intersecting Center Bridge Dots */}
-          <div className="w-1.5 h-1.5 rounded-full bg-primary opacity-80 absolute top-[13px] left-[13px]" />
-        </div>
+        <LogoMark />
 
         {/* Brand Typography */}
         <span
