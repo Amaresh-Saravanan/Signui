@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, ArrowLeft, KeyRound, LogIn, UserPlus, CheckCircle2, MailCheck } from 'lucide-react';
 import { useSignIn, useSignUp } from '@clerk/clerk-react';
+import { LogoMark } from '../components/LogoMark';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { useAppData } from '../context/AppDataContext';
@@ -319,7 +320,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] w-full relative flex flex-col justify-between items-center px-6 py-6 bg-[#101415] selection:bg-[#44e2cd]/20 overflow-hidden antialiased font-sans text-[#e0e3e5]">
+    <div className="min-h-[calc(100vh-3.5rem)] w-full relative flex flex-col justify-between items-center px-6 py-6 bg-background selection:bg-primary/20 overflow-hidden antialiased font-sans text-text-primary">
 
       {/* ── CLEAN CRUNCHY NOISE OVERLAY ────────────────── */}
       <div
@@ -334,22 +335,23 @@ function AuthForm({ actions }: { actions: AuthActions }) {
 
       {/* ── ULTRA-MUTED BACKGROUND GLOWS ────────────────── */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[45%] h-[45%] rounded-full bg-[#44e2cd]/03 blur-[140px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[45%] h-[45%] rounded-full bg-[#1e0052]/20 blur-[140px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[45%] h-[45%] rounded-full bg-primary/5 blur-[140px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[45%] h-[45%] rounded-full bg-ember/10 blur-[140px]" />
       </div>
 
       {/* ── TIDY MINIMAL SIDE GEOMETRIC ACCENTS ────────────────── */}
       <div className="fixed top-1/2 left-8 -translate-y-1/2 hidden xl:block opacity-10 pointer-events-none z-10 space-y-3">
-        <div className="h-[1px] w-16 bg-gradient-to-r from-[#44e2cd] to-transparent" />
-        <div className="h-[1px] w-32 bg-gradient-to-r from-[#44e2cd] to-transparent" />
+        <div className="h-[1px] w-16 bg-gradient-to-r from-primary to-transparent" />
+        <div className="h-[1px] w-32 bg-gradient-to-r from-primary to-transparent" />
       </div>
 
       {/* ── HEADER ────────────────── */}
       <header className="w-full max-w-5xl flex items-center justify-between z-10 relative px-2 py-2">
-        <Link to="/" className="text-lg font-bold tracking-tight text-white/90 hover:opacity-80 transition-opacity">
+        <Link to="/" className="group flex items-center gap-2.5 text-lg font-bold tracking-tight text-text-primary hover:opacity-80 transition-opacity">
+          <LogoMark className="w-6 h-6" />
           SignBridge
         </Link>
-        <a href="#" className="text-xs font-medium text-[#c6c6cd]/80 hover:text-white transition-colors">
+        <a href="#" className="text-xs font-medium text-text-secondary hover:text-text-primary transition-colors">
           Support
         </a>
       </header>
@@ -358,7 +360,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
       <main className="w-full max-w-[380px] my-auto z-10 relative flex flex-col items-center">
 
         {/* Subtle, Un-blurred Minimal Circle Framework */}
-        <div className="mb-4 w-12 h-12 rounded-full bg-[#1d2022]/60 border border-white/[0.06] flex items-center justify-center text-[#44e2cd]/90 relative shadow-inner">
+        <div className="mb-4 w-12 h-12 rounded-full bg-surface-alt border border-border flex items-center justify-center text-primary relative shadow-inner">
           {resetStage === 'code' ? (
             <KeyRound size={18} className="animate-in zoom-in-50 duration-300" />
           ) : isSubmitted || pendingVerification ? (
@@ -378,7 +380,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
 
         {/* Text Area */}
         <div className="text-center mb-5 space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary">
             {resetStage === 'code' ? 'Reset password' : pendingVerification ? 'Verify your email' : isSubmitted ? 'Email Sent' : (
               <>
                 {mode === 'login' && 'Welcome back'}
@@ -387,7 +389,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
               </>
             )}
           </h1>
-          <p className="text-xs text-[#c6c6cd]/80 max-w-xs mx-auto">
+          <p className="text-xs text-text-secondary max-w-xs mx-auto">
             {resetStage === 'code' ? (
               `Enter the code sent to ${pending.email} and a new password.`
             ) : pendingVerification ? (
@@ -405,7 +407,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
         </div>
 
         {/* High-Fidelity Refined Modular Card wrapper */}
-        <div className="w-full bg-[#1d2022]/30 border border-white/[0.06] backdrop-blur-md rounded-xl p-5 sm:p-6 shadow-2xl relative">
+        <div className="glass w-full rounded-xl p-5 sm:p-6 shadow-2xl relative">
           <AnimatePresence mode="wait">
             {resetStage === 'code' ? (
               <motion.form
@@ -423,7 +425,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                   placeholder="123456"
                   error={error}
                   required
-                  className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs tracking-[0.3em]"
+                  className="bg-transparent h-10 text-xs tracking-[0.3em]"
                 />
                 <Input
                   label="New Password"
@@ -431,13 +433,13 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                   type="password"
                   placeholder="••••••••"
                   required
-                  className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs"
+                  className="bg-transparent h-10 text-xs"
                 />
                 <Button
                   type="submit"
                   fullWidth
                   disabled={busy}
-                  className="bg-[#44e2cd] hover:bg-[#3cd3be] text-[#00201c] font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
+                  className="font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
                 >
                   {busy ? 'Resetting…' : 'Reset Password & Sign In'}
                 </Button>
@@ -460,13 +462,13 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                   onChange={(ev) => setCode(ev.target.value)}
                   error={error}
                   required
-                  className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs tracking-[0.3em]"
+                  className="bg-transparent h-10 text-xs tracking-[0.3em]"
                 />
                 <Button
                   type="submit"
                   fullWidth
                   disabled={busy}
-                  className="bg-[#44e2cd] hover:bg-[#3cd3be] text-[#00201c] font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
+                  className="font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
                 >
                   {busy ? 'Verifying…' : 'Verify & Continue'}
                 </Button>
@@ -482,13 +484,13 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                 className="flex flex-col gap-3.5"
               >
                 {mode === 'signup' && (
-                  <Input label="Full Name" name="name" placeholder="Akshaya B" required className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs" />
+                  <Input label="Full Name" name="name" placeholder="Akshaya B" required className="bg-transparent h-10 text-xs" />
                 )}
 
-                <Input label="Email Address" name="email" type="email" placeholder="name@company.com" error={error} required className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs" />
+                <Input label="Email Address" name="email" type="email" placeholder="name@company.com" error={error} required className="bg-transparent h-10 text-xs" />
 
                 {mode !== 'forgot' && (
-                  <Input label="Password" name="password" type="password" placeholder="••••••••" required className="bg-transparent border-white/[0.08] focus:border-[#44e2cd]/60 h-10 text-xs" />
+                  <Input label="Password" name="password" type="password" placeholder="••••••••" required className="bg-transparent h-10 text-xs" />
                 )}
 
                 {mode === 'login' && (
@@ -496,7 +498,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                     <button
                       type="button"
                       onClick={() => setMode('forgot')}
-                      className="text-[11px] text-[#44e2cd]/80 hover:text-[#44e2cd] font-medium transition-colors"
+                      className="text-[11px] text-primary/80 hover:text-primary font-medium transition-colors"
                     >
                       Forgot password?
                     </button>
@@ -507,7 +509,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                   type="submit"
                   fullWidth
                   disabled={busy}
-                  className="bg-[#44e2cd] hover:bg-[#3cd3be] text-[#00201c] font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
+                  className="font-bold rounded-lg h-10 text-xs active:scale-[0.99] transition-all duration-200 mt-1 shadow-none disabled:opacity-60"
                 >
                   {busy ? 'Please wait…' : (
                     <>
@@ -520,7 +522,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
 
                 {mode !== 'forgot' && (
                   <>
-                    <div className="flex items-center my-0.5 text-[9px] font-bold text-[#c6c6cd]/20 tracking-widest uppercase before:content-[''] before:flex-1 before:border-b before:border-white/[0.04] before:mr-2.5 after:content-[''] after:flex-1 after:border-b after:border-white/[0.04] after:ml-2.5">
+                    <div className="flex items-center my-0.5 text-[9px] font-bold text-text-secondary tracking-widest uppercase before:content-[''] before:flex-1 before:border-b before:border-border/40 before:mr-2.5 after:content-[''] after:flex-1 after:border-b after:border-border/40 after:ml-2.5">
                       or
                     </div>
 
@@ -529,9 +531,9 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                       variant="secondary"
                       fullWidth
                       onClick={handleGoogle}
-                      className="gap-2 h-10 rounded-lg bg-transparent border-white/[0.08] text-[#e0e3e5] hover:bg-white/[0.03] font-medium text-xs transition-all shadow-none"
+                      className="gap-2 h-10 rounded-lg text-xs transition-all shadow-none"
                     >
-                      <Globe size={13} className="text-[#c6c6cd]" />
+                      <Globe size={13} className="text-text-secondary" />
                       Continue with Google
                     </Button>
                   </>
@@ -543,13 +545,13 @@ function AuthForm({ actions }: { actions: AuthActions }) {
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-center py-2 space-y-4 flex flex-col items-center"
               >
-                <p className="text-xs text-[#c6c6cd]/80 leading-relaxed">
+                <p className="text-xs text-text-secondary leading-relaxed">
                   A verification transmission token link was directed successfully toward your layout address.
                 </p>
                 <Button
                   onClick={() => setIsSubmitted(false)}
                   variant="secondary"
-                  className="text-xs font-semibold text-[#44e2cd] border-[#44e2cd]/20 hover:bg-[#44e2cd]/5 bg-transparent transition-all px-4 h-9 rounded-lg"
+                  className="text-xs font-semibold px-4 h-9 rounded-lg"
                 >
                   Resend Email Index
                 </Button>
@@ -563,7 +565,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
           {resetStage === 'code' ? (
             <button
               onClick={() => { setResetStage('idle'); setMode('login'); setError(''); }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#c6c6cd]/80 hover:text-[#44e2cd] transition-all duration-150 group"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-primary transition-all duration-150 group"
             >
               <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
               Back to Sign In
@@ -571,7 +573,7 @@ function AuthForm({ actions }: { actions: AuthActions }) {
           ) : pendingVerification ? (
             <button
               onClick={() => { setPendingVerification(false); setError(''); setCode(''); }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#c6c6cd]/80 hover:text-[#44e2cd] transition-all duration-150 group"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-primary transition-all duration-150 group"
             >
               <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
               Back
@@ -579,17 +581,17 @@ function AuthForm({ actions }: { actions: AuthActions }) {
           ) : mode === 'forgot' || isSubmitted ? (
             <button
               onClick={() => { setMode('login'); setIsSubmitted(false); }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#c6c6cd]/80 hover:text-[#44e2cd] transition-all duration-150 group"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-primary transition-all duration-150 group"
             >
               <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
               Back to Sign In
             </button>
           ) : (
-            <p className="text-xs text-[#c6c6cd]/70 font-medium">
+            <p className="text-xs text-text-secondary font-medium">
               {mode === 'login' ? "Don't have an account? " : "Already have an account? "}
               <button
                 onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-                className="text-[#44e2cd] hover:underline font-bold ml-0.5"
+                className="text-primary hover:underline font-bold ml-0.5"
               >
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
               </button>
@@ -599,12 +601,12 @@ function AuthForm({ actions }: { actions: AuthActions }) {
       </main>
 
       {/* ── FOOTER REMARKS ────────────────── */}
-      <footer className="w-full max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-medium text-[#c6c6cd]/30 z-10 relative border-t border-white/[0.04] pt-4 mt-6">
+      <footer className="w-full max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-medium text-text-secondary/70 z-10 relative border-t border-border/40 pt-4 mt-6">
         <div>© 2026 SignBridge AI. Precision in every gesture.</div>
         <div className="flex items-center gap-4">
-          <span className="hover:text-white/60 cursor-pointer transition-colors">Privacy</span>
-          <span className="hover:text-white/60 cursor-pointer transition-colors">Terms</span>
-          <span className="hover:text-white/60 cursor-pointer transition-colors">Security</span>
+          <span className="hover:text-text-primary cursor-pointer transition-colors">Privacy</span>
+          <span className="hover:text-text-primary cursor-pointer transition-colors">Terms</span>
+          <span className="hover:text-text-primary cursor-pointer transition-colors">Security</span>
         </div>
       </footer>
 
