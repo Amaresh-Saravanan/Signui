@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, CameraOff, Play, Pause, RotateCcw, Send, AlertTriangle, MessageSquare, Video, ChevronDown, Check, ShieldAlert, ShieldCheck, Info, LogOut, Users } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { AvatarPlaceholder } from '../components/AvatarPlaceholder';
+import { Avatar3D } from '../components/Avatar3D';
 import { UndoButton } from '../components/workspace/UndoButton';
 import { cn } from '../utils/cn';
 import { wordVariants, overlayVariants } from '../lib/motion';
@@ -490,7 +490,7 @@ export function Workspace() {
             )}
           </>
         ) : (
-          <AvatarPlaceholder variant="avatar" className="absolute inset-0 h-full w-full rounded-none border-none opacity-85" />
+          <Avatar3D className="absolute inset-0 h-full w-full rounded-none border-none opacity-85" />
         )}
 
         {/* Status pills */}
