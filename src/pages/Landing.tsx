@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { Camera, Hand, Zap, Save, Lock, Globe } from 'lucide-react';
-import { HeroCanvas } from '../components/landing/HeroCanvas';
+import { ParticleField, type ParticleFieldHandle } from '../components/ParticleField';
 import { StackingCards } from '../components/landing/StackingCards';
 import { Carousel } from '../components/landing/Carousel';
 import { Tabs } from '../components/landing/Tabs';
@@ -68,9 +68,21 @@ const testimonials = [
 
 export function Landing() {
   const mainRef = useRef<HTMLElement>(null);
+  const particleRef = useRef<ParticleFieldHandle>(null);
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger);
+
+    const heroSection = mainRef.current?.querySelector('.hero');
+    if (heroSection) {
+      ScrollTrigger.create({
+        trigger: heroSection,
+        start: 'top top',
+        end: 'bottom top',
+        scrub: true,
+        onUpdate: (self) => particleRef.current?.setSpeed(1 + self.progress * 4),
+      });
+    }
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const html = document.documentElement;
@@ -145,7 +157,7 @@ export function Landing() {
       <main ref={mainRef} id="top">
         {/* ═══════ HERO ═══════ */}
         <section className="hero">
-          <HeroCanvas />
+          <ParticleField ref={particleRef} colorVar="--color-primary" className="hero__canvas-container" />
           <div className="container hero__content">
             <div className="hero__badges" data-reveal>
               <span className="badge badge--cyan">
