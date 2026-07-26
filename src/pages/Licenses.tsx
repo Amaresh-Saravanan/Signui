@@ -15,7 +15,6 @@ const RUNTIME_DEPENDENCIES = [
   { name: 'tailwind-merge', version: '3.6.0', license: 'MIT', url: 'https://github.com/dcastil/tailwind-merge' },
   { name: '@fontsource/inter', version: '5.2.8', license: 'OFL-1.1', url: 'https://github.com/fontsource/fontsource' },
   { name: '@fontsource/sora', version: '5.2.8', license: 'OFL-1.1', url: 'https://github.com/fontsource/fontsource' },
-  { name: '@fontsource/geist-sans', version: '5.2.5', license: 'OFL-1.1', url: 'https://github.com/fontsource/fontsource' },
 ];
 
 export function Licenses() {
