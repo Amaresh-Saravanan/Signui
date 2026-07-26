@@ -37,7 +37,7 @@ export function Dashboard() {
       {/* ── HEADER CONTEXT ────────────────── */}
       <div className="flex flex-col gap-1">
         <h1 className="text-4xl font-extrabold tracking-tight text-text-primary font-sans">
-          Welcome back, <span className="bg-gradient-to-r from-primary via-indigo-500 to-teal-400 bg-clip-text text-transparent">Akshaya</span>
+          Welcome back, <span className="bg-gradient-to-r from-primary to-ember bg-clip-text text-transparent">{state.user.firstName}</span>
         </h1>
         <p className="text-xs font-medium tracking-wide text-text-secondary">
           Here is your translation activity and studio workflow summary.
@@ -53,7 +53,7 @@ export function Dashboard() {
       >
         {/* Modern Interactive Hero Tile */}
         <motion.div variants={cardVariants} className="lg:col-span-8">
-          <Card className="relative overflow-hidden p-8 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-xl min-h-[260px] flex flex-col justify-between group shadow-sm rounded-2xl">
+          <Card className="relative overflow-hidden p-8 min-h-[260px] flex flex-col justify-between group rounded-2xl">
             <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/[0.03] to-transparent rounded-full blur-[90px] pointer-events-none" />
 
             <div className="space-y-3 max-w-xl">
@@ -69,7 +69,7 @@ export function Dashboard() {
 
             <div className="pt-6">
               <Link to="/workspace">
-                <Button size="lg" className="bg-white/[0.02] dark:bg-white/[0.02] border border-black/[0.08] dark:border-white/[0.08] hover:bg-primary/[0.08] hover:border-primary/30 text-text-primary hover:text-primary font-bold px-7 py-3 rounded-full transition-all duration-200">
+                <Button size="lg" className="bg-surface-alt border border-border hover:bg-primary/[0.08] hover:border-primary/30 text-text-primary hover:text-primary font-bold px-7 py-3 rounded-full transition-all duration-200">
                   Launch Studio
                 </Button>
               </Link>
@@ -80,7 +80,7 @@ export function Dashboard() {
         {/* Dynamic Navigation Cards Column */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           <motion.div variants={cardVariants} className="flex-1">
-            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl shadow-sm">
+            <Card className="p-5 h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-primary/[0.06] border border-primary/10 flex items-center justify-center text-primary">
                   <BookOpen size={20} />
@@ -90,14 +90,14 @@ export function Dashboard() {
                   <p className="text-xs text-text-secondary font-mono mt-0.5">{totalSavedPhrases} Saved Phrases</p>
                 </div>
               </div>
-              <Link to="/phrasebook" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
+              <Link to="/phrasebook" className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-surface-alt">
                 <ArrowRight size={14} />
               </Link>
             </Card>
           </motion.div>
 
           <motion.div variants={cardVariants} className="flex-1">
-            <Card className="p-5 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-md h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl shadow-sm">
+            <Card className="p-5 h-full flex items-center justify-between group hover:border-primary/20 transition-all rounded-2xl">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-primary/[0.06] border border-primary/10 flex items-center justify-center text-primary">
                   <Users size={20} />
@@ -107,7 +107,7 @@ export function Dashboard() {
                   <p className="text-xs text-text-secondary font-mono mt-0.5">{activeRoomsCount} Active Rooms</p>
                 </div>
               </div>
-              <Link to="/workspace" className="w-8 h-8 rounded-full border border-black/[0.06] dark:border-white/[0.05] flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-black/[0.01] dark:bg-white/[0.01]">
+              <Link to="/workspace" className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-text-secondary group-hover:text-primary group-hover:border-primary/30 transition-all bg-surface-alt">
                 <ArrowRight size={14} />
               </Link>
             </Card>
@@ -124,7 +124,7 @@ export function Dashboard() {
       >
         {/* Expanded Premium Usage Analytics Chart */}
         <motion.div variants={cardVariants} className="lg:col-span-12">
-          <Card className="p-6 bg-white/[0.02] dark:bg-white/[0.01] border-black/[0.06] dark:border-white/[0.05] backdrop-blur-xl flex flex-col justify-between min-h-[340px] rounded-2xl shadow-sm">
+          <Card className="p-6 flex flex-col justify-between min-h-[340px] rounded-2xl">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold tracking-wide text-text-primary flex items-center gap-1.5">
@@ -153,7 +153,7 @@ export function Dashboard() {
                         "w-full rounded-t-lg transition-all duration-200 border border-transparent",
                         isPeakColumn
                           ? 'bg-primary/20 border-primary/30 shadow-sm shadow-primary/5 scale-x-[1.01]'
-                          : 'bg-black/[0.04] dark:bg-white/[0.04] group-hover/bar:bg-primary/10 group-hover/bar:border-primary/10'
+                          : 'bg-surface-alt group-hover/bar:bg-primary/10 group-hover/bar:border-primary/10'
                       )}
                     />
                   </div>
@@ -161,7 +161,7 @@ export function Dashboard() {
               })}
             </div>
 
-            <div className="flex justify-between items-center text-[10px] font-mono tracking-wider text-text-secondary mt-4 px-1 border-t border-black/[0.06] dark:border-white/[0.05] pt-3">
+            <div className="flex justify-between items-center text-[10px] font-mono tracking-wider text-text-secondary mt-4 px-1 border-t border-border pt-3">
               <span>START PERIOD</span>
               <span>MIDPOINT</span>
               <span>TODAY</span>
