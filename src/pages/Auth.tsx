@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, ArrowLeft, KeyRound, LogIn, UserPlus, CheckCircle2, MailCheck } from 'lucide-react';
 import { useSignIn, useSignUp } from '@clerk/clerk-react';
 import { LogoMark } from '../components/LogoMark';
+import { ParticleField } from '../components/ParticleField';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { useAppData } from '../context/AppDataContext';
@@ -151,72 +152,9 @@ function AuthForm({ actions }: { actions: AuthActions }) {
   // Password-reset step (Clerk forgot-password: email code + new password).
   const [resetStage, setResetStage] = useState<'idle' | 'code'>('idle');
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { state } = useAppData();
-
-  // Muted Atmosphere Particle Engine
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let particles: Array<{
-      x: number;
-      y: number;
-      size: number;
-      speedX: number;
-      speedY: number;
-      opacity: number;
-    }> = [];
-    const particleCount = 25; // Lower count for minimal look
-
-    const init = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      particles = [];
-      for (let i = 0; i < particleCount; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          size: Math.random() * 1.5 + 0.5, // Tiny subtle specs
-          speedX: (Math.random() - 0.5) * 0.15,
-          speedY: (Math.random() - 0.5) * 0.15,
-          opacity: Math.random() * 0.15, // Barely visible whisper
-        });
-      }
-    };
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach((p) => {
-        p.x += p.speedX;
-        p.y += p.speedY;
-        if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
-
-        ctx.fillStyle = `rgba(68, 226, 205, ${p.opacity})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      animationFrameId = requestAnimationFrame(animate);
-    };
-
-    init();
-    animate();
-
-    const handleResize = () => init();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   const goAfterAuth = () => {
     // New users go through onboarding; returning (onboarded) users go to their
@@ -331,7 +269,13 @@ function AuthForm({ actions }: { actions: AuthActions }) {
       />
 
       {/* ── LIVE CANVAS ENGINE ────────────────── */}
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
+      <ParticleField
+        colorVar="--color-primary"
+        linked={false}
+        density={25}
+        dotOpacity={0.15}
+        className="absolute inset-0 pointer-events-none z-0"
+      />
 
       {/* ── ULTRA-MUTED BACKGROUND GLOWS ────────────────── */}
       <div className="absolute inset-0 pointer-events-none z-0">
