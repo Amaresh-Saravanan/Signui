@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
+import { Camera, Hand, Zap, Save, Lock, Globe } from 'lucide-react';
 import { HeroCanvas } from '../components/landing/HeroCanvas';
 import { StackingCards } from '../components/landing/StackingCards';
 import { Carousel } from '../components/landing/Carousel';
 import { Tabs } from '../components/landing/Tabs';
+import { LogoMark } from '../components/LogoMark';
 import '../styles/landing.css';
 
 const stats = [
@@ -21,25 +23,25 @@ const howItWorks = [
     num: '01',
     title: 'Activate Camera',
     desc: 'Securely connect your webcam. All processing happens locally — nothing leaves your device.',
-    icon: '📹',
+    icon: Camera,
   },
   {
     num: '02',
     title: 'Sign Naturally',
     desc: 'Use ASL, ISL, or BSL fingerspelling. Our AI recognizes hand shapes in real-time at 18+ FPS.',
-    icon: '🤟',
+    icon: Hand,
   },
   {
     num: '03',
     title: 'Instant Translation',
     desc: 'See text appear as you sign. Copy, share, or have it read aloud — zero delays.',
-    icon: '⚡',
+    icon: Zap,
   },
   {
     num: '04',
     title: 'Save & Review',
     desc: 'Conversation history is saved locally. Review past translations anytime, completely private.',
-    icon: '💾',
+    icon: Save,
   },
 ];
 
@@ -124,12 +126,12 @@ export function Landing() {
   }, []);
 
   return (
-    <div className="relative min-h-screen text-white antialiased" style={{ background: '#0a0a0f' }}>
+    <div className="relative min-h-screen bg-background text-text-primary antialiased">
       {/* HEADER */}
       <header className="header">
         <a className="header__logo" href="#top" aria-label="SignBridge home">
+          <LogoMark className="w-7 h-7" />
           <span className="logo-text">SignBridge</span>
-          <span className="logo-dot" />
         </a>
         <nav className="header__nav" aria-label="Primary">
           <a href="#features">Features</a>
@@ -212,21 +214,21 @@ export function Landing() {
               </p>
               <div className="platform__highlights" data-reveal>
                 <div className="platform__highlight">
-                  <span className="highlight-icon">🔒</span>
+                  <Lock size={24} strokeWidth={1.5} className="highlight-icon" />
                   <div>
                     <strong>Zero Cloud Dependency</strong>
                     <p>All processing happens in your browser. No uploads, no servers, no third parties.</p>
                   </div>
                 </div>
                 <div className="platform__highlight">
-                  <span className="highlight-icon">⚡</span>
+                  <Zap size={24} strokeWidth={1.5} className="highlight-icon" />
                   <div>
                     <strong>Instant Detection</strong>
                     <p>MediaPipe WASM runs at 18+ FPS for real-time hand landmark detection.</p>
                   </div>
                 </div>
                 <div className="platform__highlight">
-                  <span className="highlight-icon">🌐</span>
+                  <Globe size={24} strokeWidth={1.5} className="highlight-icon" />
                   <div>
                     <strong>Works Everywhere</strong>
                     <p>Any modern browser, any device. No downloads, no installs required.</p>
@@ -252,7 +254,9 @@ export function Landing() {
               {howItWorks.map((step, i) => (
                 <div key={step.num} className="step-card" data-reveal>
                   <div className="step-card__number">{step.num}</div>
-                  <div className="step-card__icon">{step.icon}</div>
+                  <div className="step-card__icon">
+                    <step.icon size={28} strokeWidth={1.5} />
+                  </div>
                   <h3 className="step-card__title">{step.title}</h3>
                   <p className="step-card__desc">{step.desc}</p>
                   {i < howItWorks.length - 1 && (
@@ -329,8 +333,8 @@ export function Landing() {
           <div className="footer__grid">
             <div className="footer__brand">
               <h4 className="footer__logo">
+                <LogoMark className="w-6 h-6" />
                 <span className="logo-text">SignBridge</span>
-                <span className="logo-dot" />
               </h4>
               <p className="footer__tagline">
                 Making sign language accessible to everyone through browser-native

@@ -456,8 +456,8 @@
 }
 
 .highlight-icon {
-  font-size: 1.5rem;
   flex-shrink: 0;
+  color: var(--color-accent);
 }
 
 .platform__highlight strong {
