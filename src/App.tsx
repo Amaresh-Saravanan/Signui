@@ -28,6 +28,13 @@ const Permissions = lazy(() => import('./pages/Permissions').then(m => ({ defaul
 const Preferences = lazy(() => import('./pages/Preferences').then(m => ({ default: m.Preferences })));
 const Licenses = lazy(() => import('./pages/Licenses').then(m => ({ default: m.Licenses })));
 
+// Dev-only authoring tool. Gated behind import.meta.env.DEV so Vite dead-code
+// eliminates both this lazy() call and the /dev/pose-editor route below from
+// production builds — the PoseEditor chunk never ships.
+const PoseEditor = import.meta.env.DEV
+  ? lazy(() => import('./pages/PoseEditor').then((m) => ({ default: m.PoseEditor })))
+  : null;
+
 // Lightweight route-transition fallback, theme-aware via CSS variables.
 function PageFallback() {
   return (
@@ -82,6 +89,11 @@ function App() {
                   <Route path="/contact" element={<Contact />} />
                 </Route>
               </Route>
+
+              {/* Dev-only authoring tool, standalone (no sidebar, no auth). */}
+              {import.meta.env.DEV && PoseEditor && (
+                <Route path="/dev/pose-editor" element={<PoseEditor />} />
+              )}
             </Routes>
             <ConsentBanner />
           </Suspense>
