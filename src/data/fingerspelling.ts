@@ -18,10 +18,17 @@ import type { SignClip, SignManifest } from './signManifest';
 
 type Deg3 = [number, number, number];
 
-/** Shared arm pose: forearm vertical, hand at shoulder height, palm to camera. */
+/**
+ * Shared arm pose. The right arm is the signing hand (forearm vertical, hand at
+ * shoulder height, palm to camera); the left arm rests down at the side so the
+ * character doesn't hold a T-pose on the non-signing side (setNormalizedPose
+ * resets every unlisted bone to the rest T-pose).
+ */
 const BASE_ARM: Record<string, Deg3> = {
   rightUpperArm: [0, -28, 78],
   rightLowerArm: [0, 0, -140],
+  leftUpperArm: [0, 0, -72],
+  leftLowerArm: [0, 0, 12],
 };
 
 // Finger curl presets — [proximal, intermediate, distal], curl axis is +Z.

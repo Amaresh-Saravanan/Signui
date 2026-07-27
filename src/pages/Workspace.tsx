@@ -102,6 +102,9 @@ export function Workspace() {
   const [reportSent, setReportSent] = useState(false);
   // Announced via aria-live only when a full word/sentence lands in the transcript.
   const [announcement, setAnnouncement] = useState('');
+  // Text → Sign: latest submitted text for the avatar to fingerspell. The
+  // incrementing id lets resubmitting the same word retrigger playback.
+  const [playRequest, setPlayRequest] = useState<{ text: string; id: number } | null>(null);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -337,13 +340,26 @@ export function Workspace() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Manual transcript override for sign-to-text. Text-to-sign is not yet
-  // implemented (FR-6), so this is a no-op in that mode.
+  // Composer submit. In sign-to-text this is a manual transcript override; in
+  // text-to-sign it hands the typed text to the avatar to fingerspell.
   const sendText = () => {
-    if (mode !== 'sign-to-text') return;
-    if (!inputText.trim()) return;
     const clean = inputText.trim();
+    if (!clean) return;
     const transcriptId = Date.now();
+
+    if (mode === 'text-to-sign') {
+      // Retrigger playback even when the same word is submitted twice.
+      setPlayRequest({ text: clean, id: transcriptId });
+      setTranscript(prev => [
+        ...prev,
+        { id: transcriptId, time: now(), text: clean, direction: 'outbound' },
+      ]);
+      const historyId = addHistoryEntry({ text: clean, type: 'text-to-sign', languageCode: activeLanguage });
+      wordStackRef.current.push({ transcriptId, historyId });
+      setCanUndo(true);
+      setInputText('');
+      return;
+    }
 
     setTranscript(prev => [
       ...prev,
@@ -490,7 +506,7 @@ export function Workspace() {
             )}
           </>
         ) : (
-          <Avatar3D className="absolute inset-0 h-full w-full rounded-none border-none opacity-85" />
+          <Avatar3D playRequest={playRequest} className="absolute inset-0 h-full w-full rounded-none border-none opacity-85" />
         )}
 
         {/* Status pills */}
@@ -677,7 +693,6 @@ export function Workspace() {
               )}
             >
               <MessageSquare size={12} /> Text → Sign
-              <span className="rounded-full bg-ember/15 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wide text-ember">Soon</span>
             </button>
           </div>
 
@@ -787,19 +802,18 @@ export function Workspace() {
         {/* Composer */}
         <div className="flex shrink-0 gap-2 border-t border-border p-3">
           <Input
-            value={mode === 'sign-to-text' ? inputText : ''}
+            value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendText()}
-            disabled={mode !== 'sign-to-text'}
-            placeholder={mode === 'sign-to-text' ? 'Type to add to the transcript…' : 'Text → Sign is coming soon'}
+            placeholder={mode === 'sign-to-text' ? 'Type to add to the transcript…' : 'Type a word for the avatar to sign…'}
             className="h-10 flex-1 text-sm"
-            aria-label="Add text to the transcript"
+            aria-label={mode === 'sign-to-text' ? 'Add text to the transcript' : 'Text for the avatar to sign'}
           />
           <Button
             size="sm"
             onClick={sendText}
-            disabled={mode !== 'sign-to-text' || !inputText.trim()}
-            aria-label="Add manual transcript entry"
+            disabled={!inputText.trim()}
+            aria-label={mode === 'sign-to-text' ? 'Add manual transcript entry' : 'Sign this text'}
             className="h-10 rounded-xl px-4"
           >
             <Send size={14} />
