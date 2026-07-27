@@ -1,26 +1,14 @@
 import { Suspense, useCallback, useEffect, useRef, useState, Component } from 'react';
 import type { ReactNode } from 'react';
-import { Canvas, useLoader, useThree } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, useProgress, Html } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { VRMLoaderPlugin } from '@pixiv/three-vrm';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from 'three';
 import { RotateCcw } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../utils/cn';
+import { useVRMAvatar, type DefaultView } from '../hooks/useVRMAvatar';
 
-// Fraction of the avatar's total height (feet at y=0) used as the vertical
-// look-at point — lands roughly on the chest/upper torso for a standing
-// humanoid, regardless of the model's actual proportions.
-const CHEST_HEIGHT_RATIO = 0.6;
-// Extra headroom multiplier on top of the tight vertical-fit distance so the
-// head and feet stay clear of the viewport edges while orbiting.
-const FRAMING_PADDING = 1.6;
-// Zoom clamps as a ratio of the framing distance, so they scale with any
-// model's own size instead of a fixed world-unit constant.
-const MIN_ZOOM_RATIO = 0.4;
-const MAX_ZOOM_RATIO = 2;
 // Fallback background if the theme token can't be read (e.g. before mount).
 const FALLBACK_SURFACE_COLOR = '#0f1419';
 
@@ -65,12 +53,6 @@ class AvatarErrorBoundary extends Component<{ children: ReactNode }, { hasError:
   }
 }
 
-/** Camera position + OrbitControls target the view resets to. Captured once, when the model first frames itself. */
-interface DefaultView {
-  position: THREE.Vector3;
-  target: THREE.Vector3;
-}
-
 interface VRMAvatarProps {
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   defaultViewRef: React.RefObject<DefaultView | null>;
@@ -78,56 +60,11 @@ interface VRMAvatarProps {
 
 function VRMAvatar({ controlsRef, defaultViewRef }: VRMAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const { camera } = useThree();
-  const gltf = useLoader(GLTFLoader, '/avatar/malesign.vrm', (loader) => {
-    loader.register((parser) => new VRMLoaderPlugin(parser));
-  });
-
-  useEffect(() => {
-    if (gltf.userData.vrm) {
-      gltf.scene.add(gltf.userData.vrm.scene);
-    }
-
-    // Recenter on the model's own bounding box so this works for any GLB/VRM,
-    // not just this specific avatar's authored pivot. Feet land on y=0 and
-    // the horizontal center lands on the rotation axis (x=0, z=0), which is
-    // what makes the idle spin read as turning around the body, not the feet.
-    const box = new THREE.Box3().setFromObject(gltf.scene);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    gltf.scene.position.x -= center.x;
-    gltf.scene.position.z -= center.z;
-    gltf.scene.position.y -= box.min.y;
-
-    const height = size.y;
-    const chestHeight = height * CHEST_HEIGHT_RATIO;
-
-    const perspCamera = camera as THREE.PerspectiveCamera;
-    const fovRad = (perspCamera.fov * Math.PI) / 180;
-    const distance = (height / 2 / Math.tan(fovRad / 2)) * FRAMING_PADDING;
-
-    perspCamera.position.set(0, chestHeight, distance);
-    perspCamera.near = Math.max(distance / 100, 0.01);
-    perspCamera.far = distance * 10;
-    perspCamera.updateProjectionMatrix();
-
-    const target = new THREE.Vector3(0, chestHeight, 0);
-    if (controlsRef.current) {
-      controlsRef.current.target.copy(target);
-      // Same `distance` used to frame the shot, so clamping scales with the model.
-      controlsRef.current.minDistance = distance * MIN_ZOOM_RATIO;
-      controlsRef.current.maxDistance = distance * MAX_ZOOM_RATIO;
-      controlsRef.current.update();
-    }
-
-    // Captured once — the reset button snaps back to this, not to whatever
-    // the camera happens to be at when clicked.
-    defaultViewRef.current = { position: perspCamera.position.clone(), target: target.clone() };
-  }, [gltf, camera, controlsRef, defaultViewRef]);
+  const { scene } = useVRMAvatar('/avatar/malesign.vrm', controlsRef, defaultViewRef);
 
   return (
     <group ref={groupRef}>
-      <primitive object={gltf.scene} />
+      <primitive object={scene} />
     </group>
   );
 }
