@@ -1,4 +1,5 @@
 import type { VRMPose } from '@pixiv/three-vrm';
+import { fingerspellingManifest } from './fingerspelling';
 
 export interface SignKeyframe {
   /** Seconds from the start of this clip. */
@@ -17,7 +18,11 @@ export interface SignClip {
 /** Key = 'A'..'Z' or a lowercase phrase like 'hello'. */
 export type SignManifest = Record<string, SignClip>;
 
-// No content authored yet. To add a sign: drop a clip JSON file under
-// src/data/signs/, import it above, and add it to this object — no engine
-// code changes needed.
-export const signManifest: SignManifest = {};
+// ASL fingerspelling (A–Z) is generated from calibrated bone rotations in
+// ./fingerspelling. The type-only import above and this value import form a
+// one-way cycle that is erased at runtime (verbatimModuleSyntax), so there's
+// no circular-dependency hazard. To add phrase clips later, spread more
+// manifests in here.
+export const signManifest: SignManifest = {
+  ...fingerspellingManifest,
+};
