@@ -27,6 +27,9 @@ const Onboarding = lazy(() => import('./pages/Onboarding').then(m => ({ default:
 const Permissions = lazy(() => import('./pages/Permissions').then(m => ({ default: m.Permissions })));
 const Preferences = lazy(() => import('./pages/Preferences').then(m => ({ default: m.Preferences })));
 const Licenses = lazy(() => import('./pages/Licenses').then(m => ({ default: m.Licenses })));
+const PoseSpike = import.meta.env.DEV
+  ? lazy(() => import('./pages/PoseSpike').then(m => ({ default: m.PoseSpike })))
+  : null;
 
 // Dev-only authoring tool. Gated behind import.meta.env.DEV so Vite dead-code
 // eliminates both this lazy() call and the /dev/pose-editor route below from
@@ -93,6 +96,10 @@ function App() {
               {/* Dev-only authoring tool, standalone (no sidebar, no auth). */}
               {import.meta.env.DEV && PoseEditor && (
                 <Route path="/dev/pose-editor" element={<PoseEditor />} />
+              )}
+              {/* Dev-only pose-authoring harness (window.__setPose / __frameOnBone). */}
+              {import.meta.env.DEV && PoseSpike && (
+                <Route path="/dev/pose-spike" element={<PoseSpike />} />
               )}
             </Routes>
             <ConsentBanner />
