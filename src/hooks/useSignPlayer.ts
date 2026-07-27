@@ -53,7 +53,7 @@ export class SignPlaybackController {
 
   play(clipKeys: string[]) {
     this.queue = clipKeys
-      .filter((key) => this.manifest[key])
+      .filter((key) => this.manifest[key]?.keyframes.length > 0)
       .map((key) => ({ key, clip: this.manifest[key] }));
     this.index = 0;
     this.clipElapsed = 0;
@@ -107,7 +107,11 @@ export function useSignPlayer(vrm: VRM | null, manifest: SignManifest): UseSignP
   const controllerRef = useRef<SignPlaybackController | null>(null);
 
   const controller = useMemo(
-    () => new SignPlaybackController(manifest, (pose) => vrm?.humanoid?.setNormalizedPose(pose)),
+    () =>
+      new SignPlaybackController(manifest, (pose) => {
+        vrm?.humanoid?.resetNormalizedPose();
+        vrm?.humanoid?.setNormalizedPose(pose);
+      }),
     [manifest, vrm],
   );
   controllerRef.current = controller;

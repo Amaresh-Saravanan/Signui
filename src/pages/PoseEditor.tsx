@@ -81,6 +81,7 @@ function PoseEditorScene({ angles, previewManifest, previewKey, previewRequestId
     // every frame, except mid-preview — otherwise this would fight
     // useSignPlayer's own per-frame pose application.
     if (state !== 'playing') {
+      vrm.humanoid?.resetNormalizedPose();
       vrm.humanoid?.setNormalizedPose(anglesToPose(angles));
       vrm.update(0);
     }
