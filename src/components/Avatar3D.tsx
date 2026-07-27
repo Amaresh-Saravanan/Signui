@@ -8,6 +8,9 @@ import { RotateCcw } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../utils/cn';
 import { useVRMAvatar, type DefaultView } from '../hooks/useVRMAvatar';
+import { useSignPlayer, type SignPlayerState } from '../hooks/useSignPlayer';
+import { resolveText } from '../lib/resolveText';
+import { signManifest } from '../data/signManifest';
 
 // Fallback background if the theme token can't be read (e.g. before mount).
 const FALLBACK_SURFACE_COLOR = '#0f1419';
@@ -56,11 +59,27 @@ class AvatarErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 interface VRMAvatarProps {
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   defaultViewRef: React.RefObject<DefaultView | null>;
+  playRequest?: { text: string; id: number } | null;
+  onPlaybackStateChange?: (state: SignPlayerState) => void;
 }
 
-function VRMAvatar({ controlsRef, defaultViewRef }: VRMAvatarProps) {
+function VRMAvatar({ controlsRef, defaultViewRef, playRequest, onPlaybackStateChange }: VRMAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const { scene } = useVRMAvatar('/avatar/malesign.vrm', controlsRef, defaultViewRef);
+  const { vrm, scene } = useVRMAvatar('/avatar/malesign.vrm', controlsRef, defaultViewRef);
+  const { state, play } = useSignPlayer(vrm, signManifest);
+
+  useEffect(() => {
+    onPlaybackStateChange?.(state);
+  }, [state, onPlaybackStateChange]);
+
+  useEffect(() => {
+    if (!playRequest) return;
+    if (!vrm) return; // dropped — no VRM to animate yet; not retried once it loads
+    play(resolveText(playRequest.text, signManifest));
+    // Intentionally keyed on `playRequest.id` alone, not `.text` — resubmitting
+    // identical text (same string, new id) must still retrigger playback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playRequest?.id]);
 
   return (
     <group ref={groupRef}>
@@ -80,9 +99,11 @@ function ThemeBackground({ color }: { color: string }) {
 
 interface Avatar3DProps {
   className?: string;
+  playRequest?: { text: string; id: number } | null;
+  onPlaybackStateChange?: (state: SignPlayerState) => void;
 }
 
-export function Avatar3D({ className }: Avatar3DProps) {
+export function Avatar3D({ className, playRequest, onPlaybackStateChange }: Avatar3DProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const defaultViewRef = useRef<DefaultView | null>(null);
   const [surfaceColor, setSurfaceColor] = useState(readSurfaceColor);
@@ -125,7 +146,12 @@ export function Avatar3D({ className }: Avatar3DProps) {
         <directionalLight position={[-3, 3, -3]} intensity={0.35} />
         <AvatarErrorBoundary>
           <Suspense fallback={<Loader />}>
-            <VRMAvatar controlsRef={controlsRef} defaultViewRef={defaultViewRef} />
+            <VRMAvatar
+              controlsRef={controlsRef}
+              defaultViewRef={defaultViewRef}
+              playRequest={playRequest}
+              onPlaybackStateChange={onPlaybackStateChange}
+            />
           </Suspense>
         </AvatarErrorBoundary>
         <OrbitControls
