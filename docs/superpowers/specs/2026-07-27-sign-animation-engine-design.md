@@ -18,8 +18,8 @@ No free, ready-to-use ASL fingerspelling animation source exists to import. The 
 Build a small, self-contained engine with four pieces, requiring **zero new dependencies**:
 
 1. **`resolveText(text, manifest)`** — a pure function (no React/Three dependency) that resolves typed text into an ordered list of clip keys: whole-phrase lookup first (case-insensitive), then per-character fingerspelling fallback, skipping spaces/digits/punctuation. Returns `[]` when nothing in the text matches the manifest.
-2. **A custom JSON keyframe clip format** — not the standard `.vrma` file format. `@pixiv/three-vrm-animation` is a *loader*, not an exporter; writing real `.vrma` files would require hand-building a custom glTF exporter that injects the `VRMC_vrm_animation` extension (bone-name mapping, T-pose normalization) — real spec-conformance risk for no payoff, since nothing outside this app needs to open these clips in another tool. Instead, clips are plain JSON (bone name → Euler rotation per keyframe, plus timing), converted into a real `THREE.AnimationClip` at load time. Playback is still genuinely interpolated via `THREE.AnimationMixer` — only the on-disk container format differs from VRMA.
-3. **`useSignPlayer(vrm, manifest)`** — a hook that builds `AnimationClip`/`AnimationMixer` from the JSON data and plays a resolved sequence of clip keys back-to-back (short crossfade between clips), exposing `{ state: 'idle' | 'playing' | 'done', play(clipKeys), stop() }`.
+2. **A custom JSON keyframe clip format built on `@pixiv/three-vrm`'s own `VRMPose` type** — not the standard `.vrma` file format. `@pixiv/three-vrm-animation` is a *loader*, not an exporter; writing real `.vrma` files would require hand-building a custom glTF exporter that injects the `VRMC_vrm_animation` extension — real spec-conformance risk for no payoff, since nothing outside this app needs to open these clips in another tool. Instead, `@pixiv/three-vrm`'s `VRMHumanoid` already exposes `getNormalizedPose(): VRMPose` / `setNormalizedPose(pose: VRMPose): void` — `VRMPose` is a plain, JSON-serializable `Record<boneName, { rotation: [x,y,z,w] }>` (quaternion, position omitted — irrelevant for hand/arm signing). A clip is just an ordered list of `VRMPose` snapshots with timestamps; playback interpolates (slerps) each bone's quaternion between the two surrounding keyframes and calls `setNormalizedPose()` every frame. This is genuinely interpolated, uses only what's already installed, and needs no hand-built `AnimationClip`/`AnimationMixer` plumbing.
+3. **`useSignPlayer(vrm, manifest)`** — a hook that steps through a resolved sequence of clips, slerping between each clip's keyframe poses and calling `setNormalizedPose()` every frame (short crossfade between clips), exposing `{ state: 'idle' | 'playing' | 'done', play(clipKeys), stop() }`. The pose-interpolation math itself (`lerpPose(a, b, t)`) is a pure function independent of Three/React, so it's unit-testable without a live VRM or Canvas.
 4. **A dev-only Pose Editor** (`/dev/pose-editor`) for hand-authoring clips via bone-rotation sliders, reusing the same VRM-loading logic as `Avatar3D`.
 
 Content ships **empty** in this pass — the manifest has no clips. The engine must behave correctly with zero, or only partially, authored content (see Fallback Behavior below).
@@ -49,14 +49,16 @@ Avatar3D  (rendering component, inside Canvas)
 
 ```ts
 // src/data/signs/<key>.json
+import type { VRMPose } from '@pixiv/three-vrm';
+
 interface SignKeyframe {
-  time: number;                                       // seconds from clip start
-  bones: Record<string, [x: number, y: number, z: number]>; // VRM humanoid bone name → Euler rotation
+  time: number;        // seconds from clip start
+  pose: VRMPose;       // from humanoid.getNormalizedPose() — rotation-only quaternions
 }
 
 interface SignClip {
-  duration: number;                                   // seconds
-  keyframes: SignKeyframe[];                          // 1 keyframe = static held pose; 2+ = motion (J, Z, phrases)
+  duration: number;                 // seconds
+  keyframes: SignKeyframe[];        // 1 keyframe = static held pose; 2+ = motion (J, Z, phrases)
 }
 
 type SignManifest = Record<string, SignClip>;         // key = 'A'..'Z' or a phrase like 'hello'
@@ -68,7 +70,7 @@ type SignManifest = Record<string, SignClip>;         // key = 'A'..'Z' or a phr
 ### Components & hooks
 
 - **`useVRMAvatar(path, controlsRef?)`** — the existing box-centering/camera-framing logic in today's `Avatar3D`/`VRMAvatar`, extracted unchanged so `PoseEditor` can reuse it. Returns `{ vrm, scene }`.
-- **`useSignPlayer(vrm, manifest)`** — converts a `SignClip`'s keyframes into a `THREE.AnimationClip` (one `QuaternionKeyframeTrack` per named bone, Euler → Quaternion) bound via `THREE.AnimationMixer`. `play(clipKeys)` queues clips back-to-back (~150ms crossfade between them via the mixer's `finished` event), setting `state: 'playing'` then `'done'` after the last clip. A clip key with no manifest entry is skipped silently within the sequence; an entirely empty resolved sequence makes `play()` a no-op and `state` stays `'idle'`.
+- **`useSignPlayer(vrm, manifest)`** — each frame (via `useFrame`), advances through the resolved clip sequence, slerps each bone's quaternion between the current clip's surrounding keyframe poses, and calls `vrm.humanoid.setNormalizedPose(pose)` followed by `vrm.update(delta)` (mandatory — with `autoUpdateHumanBones` true by default, the raw skeleton driving the skinned mesh only updates inside `vrm.update()`; skipping it means poses apply with no error and no visible movement). `play(clipKeys)` queues clips back-to-back (~150ms crossfade between them), setting `state: 'playing'` then `'done'` after the last clip. A clip key with no manifest entry is skipped silently within the sequence; an entirely empty resolved sequence makes `play()` a no-op and `state` stays `'idle'`.
 - **`Avatar3D`** — adds `playRequest?: { text: string; id: number } | null` and `onPlaybackStateChange?: (state) => void`. Internally calls `resolveText` + `useSignPlayer`, keyed on `id` so resubmitting identical text still retriggers playback. All existing behavior (orbit controls, reset view, theme-synced background) is unchanged.
 
 ### Pose Editor (dev-only authoring tool)
@@ -87,6 +89,7 @@ type SignManifest = Record<string, SignClip>;         // key = 'A'..'Z' or a phr
 ### Testing
 
 - `resolveText()`: unit tests covering phrase-first lookup, letter fallback, unresolvable/empty input, mixed case, punctuation/digit skipping, and an empty manifest.
+- `lerpPose(a, b, t)`: pure function, unit-testable without a live VRM or Canvas — covers t=0 (returns a), t=1 (returns b), t=0.5 (slerped midpoint), and bones present in only one of the two poses.
 - `useSignPlayer`: a lightweight test asserting `play([])` and `play()` with all-missing keys leave `state` at `'idle'`. No React Three Fiber rendering test — consistent with `Avatar3D` itself having no existing test file.
 
 ## Out of scope
