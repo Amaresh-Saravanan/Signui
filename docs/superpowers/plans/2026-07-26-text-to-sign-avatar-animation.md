@@ -1,3 +1,10 @@
+> **Superseded.** This plan predates `docs/superpowers/specs/2026-07-27-sign-animation-engine-design.md`
+> and conflicts with it (`sequence: VRMPose[]` prop vs. the approved `playRequest`/`onPlaybackStateChange`
+> design; raw pose snapshots vs. this spec's JSON keyframe clips). Do not execute this plan — see
+> `docs/superpowers/plans/2026-07-27-sign-animation-engine.md` instead.
+
+---
+
 # Text-to-Sign Avatar Animation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended for parallel execution) or superpowers:executing-plans for sequential execution. Steps use checkbox (`- [ ]`) syntax for tracking.
