@@ -27,6 +27,17 @@ type Deg3 = [number, number, number];
 const BASE_ARM: Record<string, Deg3> = {
   rightUpperArm: [0, -28, 78],
   rightLowerArm: [0, 0, -140],
+  // Wrist correction so the palm faces the camera instead of the back of the
+  // hand. Not a guessed value: measured live against this rig by computing
+  // the actual palm-normal vector (cross of the across-knuckles and
+  // along-finger directions) at the base arm pose, then solving for the
+  // world-Y rotation that points it at the camera (+118.33deg) and
+  // conjugating that into rightHand's local frame by its parent's world
+  // rotation — see the /dev/pose-spike measurement in the accompanying
+  // session notes. A pure local-Y guess (e.g. 90deg/180deg) does NOT work
+  // here because this rig's hand bone doesn't have its local Y aligned with
+  // the world "along the fingers" axis.
+  rightHand: [-121.41, 24.41, 42.16],
   leftUpperArm: [0, 0, -72],
   leftLowerArm: [0, 0, 12],
 };
@@ -104,13 +115,17 @@ function buildPose(shape: HandShape): VRMPose {
   return pose;
 }
 
-/** A held (static) letter → a 1-keyframe clip. */
-function held(shape: HandShape, duration = 0.7): SignClip {
+/**
+ * A held (static) letter → a 1-keyframe clip. 1.3s (up from an original 0.7s)
+ * gives each letter enough screen time to actually read as a handshape
+ * instead of flashing past mid-word.
+ */
+function held(shape: HandShape, duration = 1.3): SignClip {
   return { duration, keyframes: [{ time: 0, pose: buildPose(shape) }] };
 }
 
 /** A letter with motion (J, Z) → a multi-keyframe clip. */
-function motion(shapes: HandShape[], step = 0.35): SignClip {
+function motion(shapes: HandShape[], step = 0.55): SignClip {
   const keyframes = shapes.map((shape, i) => ({
     time: i * step,
     pose: buildPose(shape),
@@ -177,8 +192,8 @@ export const fingerspellingManifest: SignManifest = {
   // J = I-handshape drawing a small hook (little finger traces a J).
   J: motion([
     I_SHAPE,
-    { little: EXT, thumb: THUMB_ACROSS, extra: { rightHand: [0, 0, -25] } },
-    { little: EXT, thumb: THUMB_ACROSS, extra: { rightHand: [0, 0, -45], rightLowerArm: [0, 0, -125] } },
+    { little: EXT, thumb: THUMB_ACROSS, extra: { rightLowerArm: [0, 0, -132] } },
+    { little: EXT, thumb: THUMB_ACROSS, extra: { rightLowerArm: [0, 0, -125] } },
   ]),
   // Index + middle up in a V, thumb between them.
   K: held({ index: EXT, middle: EXT, thumb: { metacarpal: [0, -15, 35], proximal: [0, 0, 20], distal: [0, 0, 10] }, extra: { rightIndexProximal: SPREAD_INDEX, rightMiddleProximal: SPREAD_MIDDLE } }),
@@ -214,6 +229,6 @@ export const fingerspellingManifest: SignManifest = {
   Z: motion([
     POINT_SHAPE,
     { index: EXT, thumb: THUMB_ACROSS, extra: { rightLowerArm: [0, 0, -150] } },
-    { index: EXT, thumb: THUMB_ACROSS, extra: { rightLowerArm: [0, 0, -130], rightHand: [0, 0, -20] } },
+    { index: EXT, thumb: THUMB_ACROSS, extra: { rightLowerArm: [0, 0, -130] } },
   ]),
 };

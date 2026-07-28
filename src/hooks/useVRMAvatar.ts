@@ -98,6 +98,16 @@ export function useVRMAvatar(
     if (defaultViewRef) {
       defaultViewRef.current = { position: perspCamera.position.clone(), target: target.clone() };
     }
+
+    // Dev-only: exposes the live VRM for measuring bone world transforms from
+    // devtools (e.g. computing the exact wrist roll needed for a palm-forward
+    // signing pose) without shipping any debug surface in production.
+    if (import.meta.env.DEV) {
+      const w = window as unknown as { __vrm?: unknown; __camera?: unknown; __controls?: unknown };
+      w.__vrm = gltf.userData.vrm;
+      w.__camera = perspCamera;
+      w.__controls = controlsRef?.current;
+    }
   }, [gltf, camera, controlsRef, defaultViewRef]);
 
   return { vrm, scene: gltf.scene };
