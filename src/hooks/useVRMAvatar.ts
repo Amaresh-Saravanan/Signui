@@ -6,16 +6,21 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from 'three';
 
 // Fraction of the avatar's total height (feet at y=0) used as the vertical
-// look-at point — lands roughly on the chest/upper torso for a standing
-// humanoid, regardless of the model's actual proportions.
-const CHEST_HEIGHT_RATIO = 0.6;
+// look-at point — lands on the upper chest/shoulders so the signing hand
+// (which rises to shoulder/head height) sits centered in frame.
+const CHEST_HEIGHT_RATIO = 0.72;
+// Vertical extent actually fitted to the viewport, as a fraction of the
+// avatar's full height. < 1 crops in to the upper body (roughly mid-torso to
+// just above the head) instead of showing the whole standing figure, so the
+// signing is the focus rather than a tiny full-body shot.
+const FRAMING_FIT_RATIO = 0.62;
 // Extra headroom multiplier on top of the tight vertical-fit distance so the
-// head and feet stay clear of the viewport edges while orbiting.
-const FRAMING_PADDING = 1.6;
+// head and the raised signing hand stay clear of the viewport edges.
+const FRAMING_PADDING = 1.15;
 // Zoom clamps as a ratio of the framing distance, so they scale with any
 // model's own size instead of a fixed world-unit constant.
-const MIN_ZOOM_RATIO = 0.4;
-const MAX_ZOOM_RATIO = 2;
+const MIN_ZOOM_RATIO = 0.5;
+const MAX_ZOOM_RATIO = 2.4;
 
 /** Camera position + OrbitControls target the view resets to. Captured once, when the model first frames itself. */
 export interface DefaultView {
@@ -68,7 +73,11 @@ export function useVRMAvatar(
 
     const perspCamera = camera as THREE.PerspectiveCamera;
     const fovRad = (perspCamera.fov * Math.PI) / 180;
-    const distance = (height / 2 / Math.tan(fovRad / 2)) * FRAMING_PADDING;
+    // Fit only the upper-body slice (FRAMING_FIT_RATIO of full height) rather
+    // than the whole figure, so the camera sits closer and the chest/hands fill
+    // the frame.
+    const fitHeight = height * FRAMING_FIT_RATIO;
+    const distance = (fitHeight / 2 / Math.tan(fovRad / 2)) * FRAMING_PADDING;
 
     perspCamera.position.set(0, chestHeight, distance);
     perspCamera.near = Math.max(distance / 100, 0.01);

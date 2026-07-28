@@ -118,6 +118,34 @@ function motion(shapes: HandShape[], step = 0.35): SignClip {
   return { duration: (shapes.length - 1) * step + 0.3, keyframes };
 }
 
+/**
+ * Neutral resting pose — both arms hanging down at the sides with a soft
+ * finger curl. Applied whenever the avatar isn't actively signing so it never
+ * falls back to the raw T-pose (setNormalizedPose resets every unlisted bone
+ * to rest, so this must list every bone it wants moved on BOTH arms).
+ */
+export const idlePose: VRMPose = (() => {
+  const spec: Record<string, Deg3> = {
+    rightUpperArm: [4, 0, 68],
+    rightLowerArm: [0, 0, -10],
+    leftUpperArm: [4, 0, -68],
+    leftLowerArm: [0, 0, 10],
+  };
+  const relax = bend(12);
+  for (const finger of ['Index', 'Middle', 'Ring', 'Little']) {
+    JOINTS.forEach((joint, i) => {
+      // Right hand curls +Z; the mirrored left hand curls -Z.
+      spec[`right${finger}${joint}`] = relax[i];
+      spec[`left${finger}${joint}`] = [relax[i][0], relax[i][1], -relax[i][2]];
+    });
+  }
+  const pose: VRMPose = {};
+  for (const [bone, deg] of Object.entries(spec)) {
+    pose[bone as keyof VRMPose] = { rotation: toQuat(deg) };
+  }
+  return pose;
+})();
+
 // Modest finger spread (proximal Y) for V, K, etc. — splays adjacent fingers.
 const SPREAD_INDEX: Deg3 = [0, -18, 0];
 const SPREAD_MIDDLE: Deg3 = [0, 18, 0];

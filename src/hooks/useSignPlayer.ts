@@ -101,8 +101,16 @@ interface UseSignPlayerResult {
  * `autoUpdateHumanBones` on (the default), the skinned mesh's raw skeleton
  * only picks up a normalized pose inside `vrm.update()`; skipping it applies
  * the pose with no error and no visible movement.
+ *
+ * `idlePose` (optional) is re-applied every frame the player isn't actively
+ * playing, so the avatar rests there instead of snapping to the raw T-pose
+ * once a word finishes (or before anything has been signed).
  */
-export function useSignPlayer(vrm: VRM | null, manifest: SignManifest): UseSignPlayerResult {
+export function useSignPlayer(
+  vrm: VRM | null,
+  manifest: SignManifest,
+  idlePose?: VRMPose,
+): UseSignPlayerResult {
   const [state, setState] = useState<SignPlayerState>('idle');
   const controllerRef = useRef<SignPlaybackController | null>(null);
 
@@ -118,7 +126,13 @@ export function useSignPlayer(vrm: VRM | null, manifest: SignManifest): UseSignP
 
   useFrame((_, delta) => {
     if (!vrm) return;
-    controller.tick(delta);
+    if (controller.state === 'playing') {
+      controller.tick(delta);
+    } else if (idlePose) {
+      // Hold the resting pose while idle/done so we never fall back to T-pose.
+      vrm.humanoid?.resetNormalizedPose();
+      vrm.humanoid?.setNormalizedPose(idlePose);
+    }
     vrm.update(delta);
     if (controller.state !== state) setState(controller.state);
   });

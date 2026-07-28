@@ -11,6 +11,7 @@ import { useVRMAvatar, type DefaultView } from '../hooks/useVRMAvatar';
 import { useSignPlayer, type SignPlayerState } from '../hooks/useSignPlayer';
 import { resolveText } from '../lib/resolveText';
 import { signManifest } from '../data/signManifest';
+import { idlePose } from '../data/fingerspelling';
 
 // Fallback background if the theme token can't be read (e.g. before mount).
 const FALLBACK_SURFACE_COLOR = '#0f1419';
@@ -66,7 +67,7 @@ interface VRMAvatarProps {
 function VRMAvatar({ controlsRef, defaultViewRef, playRequest, onPlaybackStateChange }: VRMAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const { vrm, scene } = useVRMAvatar('/avatar/malesign.vrm', controlsRef, defaultViewRef);
-  const { state, play } = useSignPlayer(vrm, signManifest);
+  const { state, play } = useSignPlayer(vrm, signManifest, idlePose);
 
   useEffect(() => {
     onPlaybackStateChange?.(state);
