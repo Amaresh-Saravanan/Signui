@@ -28,16 +28,17 @@ const BASE_ARM: Record<string, Deg3> = {
   rightUpperArm: [0, -28, 78],
   rightLowerArm: [0, 0, -140],
   // Wrist correction so the palm faces the camera instead of the back of the
-  // hand. Not a guessed value: measured live against this rig by computing
-  // the actual palm-normal vector (cross of the across-knuckles and
-  // along-finger directions) at the base arm pose, then solving for the
-  // world-Y rotation that points it at the camera (+118.33deg) and
-  // conjugating that into rightHand's local frame by its parent's world
-  // rotation — see the /dev/pose-spike measurement in the accompanying
-  // session notes. A pure local-Y guess (e.g. 90deg/180deg) does NOT work
-  // here because this rig's hand bone doesn't have its local Y aligned with
-  // the world "along the fingers" axis.
-  rightHand: [-121.41, 24.41, 42.16],
+  // hand. Measured live against this rig: cross the across-knuckles and
+  // along-finger world directions to get the palm normal, then solve for the
+  // world-Y rotation that points it at the camera, and conjugate that into
+  // rightHand's local frame by its parent's world rotation (see
+  // /dev/pose-spike). Two candidate normals come out of that cross product
+  // (opposite directions) — +118.33deg was the first guess at which one was
+  // anatomically the palm and it was wrong (still showed the back); this is
+  // the supplementary angle for the other candidate, -61.67deg, verified by
+  // numerically rotating both raw normal vectors and confirming which target
+  // angle actually maximizes their camera-facing component.
+  rightHand: [58.59, -24.41, 13.84],
   leftUpperArm: [0, 0, -72],
   leftLowerArm: [0, 0, 12],
 };
