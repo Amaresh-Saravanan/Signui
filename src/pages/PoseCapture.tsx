@@ -265,16 +265,23 @@ export function PoseCapture() {
     <div className="flex h-screen w-full bg-neutral-900 text-white">
       <div className="relative w-1/2 shrink-0">
         {/*
-          Single mirror flip total, on the video only (matches Workspace.tsx's
-          sign-detection camera stage). useHolisticCapture runs Holistic with
-          selfieMode: true, which mirrors landmark x-coordinates internally to
-          already match a mirrored view — drawing them unflipped onto a
-          non-transformed canvas lines up with the CSS-mirrored video beneath
-          it. Flipping the canvas too would double-mirror the dots onto the
-          wrong hand. Both elements share `object-cover` so they crop this
-          non-16:9 panel identically; without it the canvas's 1280x720
-          backing store stretches instead of cropping and the dots drift off
-          the body. Unverified live — first thing to sanity-check in Task 4.
+          Single mirror flip total, on the video only. useHolisticCapture runs
+          Holistic with selfieMode: true, which mirrors landmark
+          x-coordinates internally so they already match a mirrored view —
+          drawing them unflipped onto a non-transformed canvas lines up with
+          the CSS-mirrored video beneath it. Flipping the canvas too would
+          double-mirror the dots onto the wrong hand. (Workspace.tsx mirrors
+          both video and canvas together, which is correct THERE only because
+          its detector doesn't use selfieMode and so works with raw,
+          unflipped landmarks — that pairing does not apply here and should
+          not be copied if "fixing" this.) Both elements share `object-cover`
+          so they crop this non-16:9 panel identically; without it the
+          canvas's 1280x720 backing store stretches instead of cropping and
+          the dots drift off the body. If Task 4's live check shows
+          misaligned dots, the crop/scale path or a wrong assumption about
+          selfieMode's runtime behavior are the suspects — re-enabling the
+          canvas mirror is not the fix, it reverts to a configuration that's
+          only aligned at the frame's horizontal center.
         */}
         <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
         <canvas ref={overlayCanvasRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
