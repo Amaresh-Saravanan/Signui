@@ -71,7 +71,7 @@ function loadHolisticScript(): Promise<void> {
  * world landmarks (poseLandmarks is the known/typed one; faceLandmarks has
  * 468 points; hand landmarks have 21).
  */
-function findPoseWorldLandmarks(results: Results): Landmark3D[] | null {
+export function findPoseWorldLandmarks(results: Results): Landmark3D[] | null {
   const record = results as unknown as Record<string, unknown>;
   for (const [key, value] of Object.entries(record)) {
     if (key === 'poseLandmarks') continue;
