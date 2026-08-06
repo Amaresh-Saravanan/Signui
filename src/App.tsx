@@ -38,6 +38,10 @@ const PoseEditor = import.meta.env.DEV
   ? lazy(() => import('./pages/PoseEditor').then((m) => ({ default: m.PoseEditor })))
   : null;
 
+const PoseCapture = import.meta.env.DEV
+  ? lazy(() => import('./pages/PoseCapture').then((m) => ({ default: m.PoseCapture })))
+  : null;
+
 // Lightweight route-transition fallback, theme-aware via CSS variables.
 function PageFallback() {
   return (
@@ -100,6 +104,10 @@ function App() {
               {/* Dev-only pose-authoring harness (window.__setPose / __frameOnBone). */}
               {import.meta.env.DEV && PoseSpike && (
                 <Route path="/dev/pose-spike" element={<PoseSpike />} />
+              )}
+              {/* Dev-only live webcam-to-VRM pose capture verification. */}
+              {import.meta.env.DEV && PoseCapture && (
+                <Route path="/dev/pose-capture" element={<PoseCapture />} />
               )}
             </Routes>
             <ConsentBanner />
