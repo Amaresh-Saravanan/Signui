@@ -10,10 +10,23 @@ interface Rotation3 {
   rotationOrder?: string;
 }
 
+/**
+ * kalidokit targets VRM 0.x, whose humanoid faces -Z (character's right hand
+ * at +X). VRM 1.0 — what `/avatar/malesign.vrm` is (verified live:
+ * `vrm.meta.metaVersion === '1'`, rightUpperArm at -X) and what
+ * `setNormalizedPose` expects — faces +Z. The two spaces differ by a 180°
+ * rotation about Y, and conjugating a quaternion by that rotation negates
+ * its x and z components.
+ *
+ * VERIFIED 2026-08-07 against a live camera: without this, arms held down
+ * drove the avatar's arms straight UP (the Z-rotation ran backwards). With
+ * it, the avatar's hands sit at hip height (y≈0.93, hips y≈0.94) with the
+ * arms down, and track raising/lowering correctly.
+ */
 function toQuat(r: Rotation3): [number, number, number, number] {
   const order = (r.rotationOrder ?? 'XYZ') as THREE.EulerOrder;
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r.x, r.y, r.z, order));
-  return [q.x, q.y, q.z, q.w];
+  return [-q.x, q.y, -q.z, q.w];
 }
 
 function setBone(pose: VRMPose, boneKey: string, rotation: Rotation3 | undefined) {

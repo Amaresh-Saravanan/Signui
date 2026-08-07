@@ -103,6 +103,7 @@ export function useHolisticCapture({
   const rafRef = useRef<number | null>(null);
   const lastTickRef = useRef(0);
   const onFrameRef = useRef(onFrame);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     onFrameRef.current = onFrame;
@@ -152,12 +153,26 @@ export function useHolisticCapture({
 
     const tick = (now: number) => {
       if (stopped) return;
-      if (frameIsDue(now, lastTickRef.current, intervalMs)) {
+      if (!sendingRef.current && frameIsDue(now, lastTickRef.current, intervalMs)) {
         lastTickRef.current = now;
         const video = videoRef.current;
         const holistic = holisticRef.current;
         if (video && holistic && video.readyState >= 2) {
-          void holistic.send({ image: video });
+          // holistic.send() is async and graph-driven (unlike tasks-vision's
+          // synchronous detectForVideo, which this fps-gate pattern was
+          // modeled on) — a second send() while one is still in flight
+          // corrupts Holistic's WASM state (crashes inside pushTexture2d).
+          // Calls must be serialized, not just rate-limited.
+          sendingRef.current = true;
+          void holistic
+            .send({ image: video })
+            .catch(() => {
+              // Swallow: a dropped/failed frame just means no onResults
+              // callback this tick, not a hook-level error.
+            })
+            .finally(() => {
+              sendingRef.current = false;
+            });
         }
       }
       rafRef.current = requestAnimationFrame(tick);
